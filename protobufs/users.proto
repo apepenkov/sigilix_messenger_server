@@ -1,6 +1,7 @@
 syntax = "proto3";
 
-package user;
+package users;
+option go_package = "github.com/apepenkov/sigilix_messenger_server/proto/users";
 
 message PublicUserInfo{
   uint64 user_id = 1;

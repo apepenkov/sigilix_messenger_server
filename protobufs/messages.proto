@@ -1,8 +1,9 @@
 syntax = "proto3";
 
 package messages;
+option go_package = "github.com/apepenkov/sigilix_messenger_server/proto/messages";
 
-import "user.proto";
+import "users.proto";
 
 // in the following scheme, user A discloses his public info to user B
 // and when user B agrees to start a dialog with user A, he discloses his public info to user A
@@ -24,7 +25,7 @@ message InitChatFromInitializerResponse {
 // server sends message to user B about new dialog
 message InitChatFromInitializerNotification {
   uint64 chat_id = 1;
-  user.PublicUserInfo initializer_user_info = 2; // user A public info
+  users.PublicUserInfo initializer_user_info = 2; // user A public info
 }
 
 // user B agrees to start a dialog with user A and sends message about that to server
@@ -39,7 +40,7 @@ message InitChatFromReceiverResponse {
 // server sends message to user A about user B agreement to start a dialog
 message InitChatFromReceiverNotification {
   uint64 chat_id = 1;
-  user.PublicUserInfo receiver_user_info = 2; // user B public info
+  users.PublicUserInfo receiver_user_info = 2; // user B public info
 }
 
 
