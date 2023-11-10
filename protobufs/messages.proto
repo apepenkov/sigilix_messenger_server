@@ -116,6 +116,7 @@ message IncomingNotification {
     SendMessageNotification send_message_notification = 4;
     SendFileNotification send_file_notification = 5;
   }
+  bytes ecdsa_signature = 6;
 }
 
 service MessageService {

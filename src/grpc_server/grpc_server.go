@@ -75,6 +75,47 @@ func IncomingInterceptorSignatureValidator(stor storage.Storage) grpc.UnaryServe
 	}
 }
 
+func serverSignerInterceptor(key *ecdsa.PrivateKey) grpc.UnaryServerInterceptor {
+	return func(
+		ctx context.Context,
+		req interface{},
+		info *grpc.UnaryServerInfo,
+		handler grpc.UnaryHandler,
+	) (resp interface{}, err error) {
+		resp, err = handler(ctx, req)
+
+		if err != nil {
+			return nil, err
+		}
+		p, ok := resp.(proto.Message)
+		if !ok {
+			return nil, status.Errorf(codes.Internal, "response does not implement proto.Message interface")
+		}
+
+		// Marshal the ProtoBuf message to bytes
+		data, err := proto.Marshal(p)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to marshal response: %v", err)
+		}
+
+		signature, err := crypto_utils.SignMessageBase64(key, data)
+
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to sign response: %v", err)
+		}
+
+		// set "serv_signature_base64" header
+		md := metadata.New(map[string]string{
+			"serv_signature_base64": signature,
+		})
+		if err = grpc.SetHeader(ctx, md); err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to send metadata: %v", err)
+		}
+
+		return resp, err
+	}
+}
+
 type GRpcServer struct {
 	creds           *credentials.TransportCredentials
 	rpcServ         *grpc.Server
@@ -87,6 +128,7 @@ func NewGrpcServer(tls *tls.Certificate, storage storage.Storage, ecdsaPrivateKe
 	server := grpc.NewServer(
 		grpc.Creds(creds),
 		grpc.UnaryInterceptor(IncomingInterceptorSignatureValidator(storage)),
+		grpc.UnaryInterceptor(serverSignerInterceptor(ecdsaPrivateKey)),
 	)
 
 	usersServer := &userService{
@@ -94,8 +136,9 @@ func NewGrpcServer(tls *tls.Certificate, storage storage.Storage, ecdsaPrivateKe
 		serverECDSAPublicKey: crypto_utils.PublicECDSAKeyToBytes(&ecdsaPrivateKey.PublicKey),
 	}
 	messagesServer := &messagesService{
-		storage:              storage,
-		serverECDSAPublicKey: crypto_utils.PublicECDSAKeyToBytes(&ecdsaPrivateKey.PublicKey),
+		storage:               storage,
+		serverECDSAPublicKey:  crypto_utils.PublicECDSAKeyToBytes(&ecdsaPrivateKey.PublicKey),
+		serverECDSAPrivateKey: ecdsaPrivateKey,
 	}
 
 	users.RegisterUserServiceServer(server, usersServer)

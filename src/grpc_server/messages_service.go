@@ -2,16 +2,20 @@ package grpc_server
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"github.com/apepenkov/sigilix_messenger_server/crypto_utils"
 	"github.com/apepenkov/sigilix_messenger_server/proto/messages"
 	"github.com/apepenkov/sigilix_messenger_server/storage"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	"time"
 )
 
 type messagesService struct {
-	storage              storage.Storage
-	serverECDSAPublicKey []byte
+	storage               storage.Storage
+	serverECDSAPublicKey  []byte
+	serverECDSAPrivateKey *ecdsa.PrivateKey
 	messages.UnimplementedMessageServiceServer
 }
 
@@ -217,27 +221,60 @@ func (ms *messagesService) SendFile(ctx context.Context, sendFileRequest *messag
 func (ms *messagesService) SubscribeToIncomingNotifications(subReq *messages.SubscriptionRequest, stream messages.MessageService_SubscribeToIncomingNotificationsServer) error {
 	ctx := stream.Context()
 	userId := ctx.Value(userContextKey).(uint64)
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		default:
+		case <-ticker.C:
 			notifications, err := ms.storage.FetchAndRemoveNotifications(userId, 10)
 			if err != nil {
 				return status.Errorf(codes.Internal, "failed to fetch notifications: %v", err)
 			}
-			if len(notifications) == 0 {
-				// No new notifications, wait before trying again
-				time.Sleep(100 * time.Millisecond)
-				continue
-			}
 			for _, notification := range notifications {
-				if err := stream.Send(notification); err != nil {
-					// Stream closed or client disconnected
-					return err // Directly return the error
+				if err := signAndSendNotification(stream, notification, ms.serverECDSAPrivateKey); err != nil {
+					return err // This could be a stream.Send error or signing error
 				}
 			}
 		}
 	}
+}
+
+func signAndSendNotification(stream messages.MessageService_SubscribeToIncomingNotificationsServer, notification *messages.IncomingNotification, privateKey *ecdsa.PrivateKey) error {
+
+	var toSign []byte
+	var err error
+
+	// Extract the actual message from the oneof interface
+	switch x := notification.Notification.(type) {
+	case *messages.IncomingNotification_InitChatFromInitializerNotification:
+		toSign, err = proto.Marshal(x.InitChatFromInitializerNotification)
+	case *messages.IncomingNotification_InitChatFromReceiverNotification:
+		toSign, err = proto.Marshal(x.InitChatFromReceiverNotification)
+	case *messages.IncomingNotification_UpdateChatRsaKeyNotification:
+		toSign, err = proto.Marshal(x.UpdateChatRsaKeyNotification)
+	case *messages.IncomingNotification_SendMessageNotification:
+		toSign, err = proto.Marshal(x.SendMessageNotification)
+	case *messages.IncomingNotification_SendFileNotification:
+		toSign, err = proto.Marshal(x.SendFileNotification)
+	default:
+		return status.Errorf(codes.Internal, "unknown notification type")
+	}
+
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to marshal notification for signing: %v", err)
+	}
+
+	signature, err := crypto_utils.SignMessage(privateKey, toSign)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to sign notification: %v", err)
+	}
+
+	// Set the signature in the notification
+	notification.EcdsaSignature = signature
+
+	// Send the notification with the signature
+	return stream.Send(notification)
 }
