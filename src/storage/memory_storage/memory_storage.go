@@ -7,6 +7,7 @@ import (
 	"github.com/apepenkov/sigilix_messenger_server/proto/messages"
 	"github.com/apepenkov/sigilix_messenger_server/storage"
 	"sync"
+	"time"
 )
 
 func min(a, b int) int {
@@ -39,19 +40,32 @@ func (nb *NotificationBucket) Pop(n int) []*messages.IncomingNotification {
 	return ret
 }
 
+type ChatBucket struct {
+	Chat          *storage.Chat
+	LastMessageId uint64
+}
+
 type inMemoryStorage struct {
-	users         map[uint64]*storage.User
-	usersRWLock   *sync.RWMutex
+	users       map[uint64]*storage.User
+	usersRWLock *sync.RWMutex
+
 	notifications map[uint64]*NotificationBucket
 	notifRWLock   *sync.RWMutex
+
+	chats       map[uint64]*ChatBucket
+	chatsRWLock *sync.RWMutex
+	lastChatId  uint64
 }
 
 func NewInMemoryStorage() storage.Storage {
 	return &inMemoryStorage{
-		users:         make(map[uint64]*storage.User, 0),
+		users:         make(map[uint64]*storage.User),
 		usersRWLock:   &sync.RWMutex{},
-		notifications: make(map[uint64]*NotificationBucket, 0),
+		notifications: make(map[uint64]*NotificationBucket),
 		notifRWLock:   &sync.RWMutex{},
+		chats:         make(map[uint64]*ChatBucket),
+		chatsRWLock:   &sync.RWMutex{},
+		lastChatId:    0,
 	}
 }
 
@@ -148,4 +162,81 @@ func (s *inMemoryStorage) PutNotifications(userId uint64, notifications ...*mess
 
 func (s *inMemoryStorage) FetchAndRemoveNotifications(userId uint64, limit int) ([]*messages.IncomingNotification, error) {
 	return s.getNotificationBucket(userId).Pop(limit), nil
+}
+
+func (s *inMemoryStorage) CreateChat(initiatorId uint64, receiverId uint64) (*storage.Chat, *storage.User, *storage.User, error) {
+	initiator, err := s.GetUserById(initiatorId)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	receiver, err := s.GetUserById(receiverId)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	s.chatsRWLock.Lock()
+	newChat := &storage.Chat{
+		CreatedAt:   time.Now(),
+		ChatId:      s.lastChatId,
+		InitiatorId: initiatorId,
+		ReceiverId:  receiverId,
+		State:       storage.ChatStateInitiatorRequested,
+	}
+	s.chats[s.lastChatId] = &ChatBucket{
+		Chat:          newChat,
+		LastMessageId: 0,
+	}
+	s.lastChatId++
+	s.chatsRWLock.Unlock()
+
+	return newChat, initiator, receiver, nil
+}
+
+func (s *inMemoryStorage) GetChat(chatId uint64) (*storage.Chat, error) {
+	s.chatsRWLock.RLock()
+	chatBucket, ok := s.chats[chatId]
+	s.chatsRWLock.RUnlock()
+	if !ok {
+		return nil, storage.ErrChatNotFound
+	}
+	return chatBucket.Chat, nil
+}
+
+func (s *inMemoryStorage) GetChatByUsers(userA uint64, userB uint64) (*storage.Chat, error) {
+	for _, chatBucket := range s.chats {
+		chat := chatBucket.Chat
+		if (chat.InitiatorId == userA && chat.ReceiverId == userB) ||
+			(chat.InitiatorId == userB && chat.ReceiverId == userA) {
+			return chat, nil
+		}
+	}
+	return nil, storage.ErrChatNotFound
+}
+
+func (s *inMemoryStorage) UpdateChatState(chatId uint64, state storage.ChatState) error {
+	s.chatsRWLock.Lock()
+	chatBucket, ok := s.chats[chatId]
+	s.chatsRWLock.Unlock()
+	if !ok {
+		return storage.ErrChatNotFound
+	}
+	chatBucket.Chat.State = state
+	return nil
+}
+
+func (s *inMemoryStorage) DestroyChat(chatId uint64) error {
+	s.chatsRWLock.Lock()
+	delete(s.chats, chatId)
+	s.chatsRWLock.Unlock()
+	return nil
+}
+
+func (s *inMemoryStorage) GetNextMessageId(chatId uint64) (uint64, error) {
+	s.chatsRWLock.Lock()
+	chatBucket, ok := s.chats[chatId]
+	s.chatsRWLock.Unlock()
+	if !ok {
+		return 0, storage.ErrChatNotFound
+	}
+	chatBucket.LastMessageId++
+	return chatBucket.LastMessageId, nil
 }

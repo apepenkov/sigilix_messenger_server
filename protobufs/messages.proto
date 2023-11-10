@@ -92,12 +92,12 @@ message SendFileRequest {
 
 message SendFileResponse {
   uint64 chat_id = 1;
-  uint64 file_id = 2;
+  uint64 message_id = 2;
 }
 
 message SendFileNotification {
   uint64 chat_id = 1;
-  uint64 file_id = 2;
+  uint64 message_id = 2;
   uint64 sender_user_id = 3;
   bytes encrypted_file = 4;
   bytes encrypted_mime_type = 5;

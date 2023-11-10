@@ -56,10 +56,10 @@ func (s *userService) Login(ctx context.Context, loginRequest *users.LoginReques
 }
 
 func (s *userService) SetUsernameConfig(ctx context.Context, setUsernameConfigRequest *users.SetUsernameConfigRequest) (*users.SetUsernameConfigResponse, error) {
-	expectedUserId := ctx.Value(userContextKey).(uint64)
+	userId := ctx.Value(userContextKey).(uint64)
 
 	err := s.storage.SetUsernameConfig(
-		expectedUserId,
+		userId,
 		setUsernameConfigRequest.Username,
 		setUsernameConfigRequest.SearchByUsernameAllowed,
 	)

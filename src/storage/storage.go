@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/apepenkov/sigilix_messenger_server/proto/messages"
 	"github.com/apepenkov/sigilix_messenger_server/proto/users"
+	"time"
 )
 
 type User struct {
@@ -31,6 +32,22 @@ func (u *User) ToPrivateInfo() *users.PrivateUserInfo {
 	}
 }
 
+type ChatState int
+
+const (
+	ChatStateInitiatorRequested ChatState = iota
+	ChatStateReceiverAccepted
+	ChatStateReady
+)
+
+type Chat struct {
+	CreatedAt   time.Time
+	ChatId      uint64
+	InitiatorId uint64
+	ReceiverId  uint64
+	State       ChatState
+}
+
 type Storage interface {
 	FetchOrCreateUser(ecdsaPublicKeyBytes []byte, initialRsaKeyBytes []byte) (*User, error)
 	GetUserById(userId uint64) (*User, error)
@@ -39,9 +56,17 @@ type Storage interface {
 
 	PutNotifications(userId uint64, notifications ...*messages.IncomingNotification) error
 	FetchAndRemoveNotifications(userId uint64, limit int) ([]*messages.IncomingNotification, error)
+
+	CreateChat(initiatorId uint64, receiverId uint64) (*Chat, *User, *User, error)
+	GetChat(chatId uint64) (*Chat, error)
+	GetChatByUsers(userA uint64, userB uint64) (*Chat, error)
+	UpdateChatState(chatId uint64, state ChatState) error
+	DestroyChat(chatId uint64) error // should be destroyed after 24 hours, if not accepted by receiver
+	GetNextMessageId(chatId uint64) (uint64, error)
 }
 
 var (
 	ErrUserNotFound = errors.New("user not found")
 	ErrRsaMissmatch = errors.New("rsa key missmatch with stored one")
+	ErrChatNotFound = errors.New("chat not found")
 )
