@@ -23,7 +23,7 @@ message LoginRequest{
 
 message LoginResponse{
   PrivateUserInfo private_info = 1;
-  bytes user_id = 2;
+  uint64 user_id = 2;
   bytes server_ecdsa_public_key = 3;
 }
 
