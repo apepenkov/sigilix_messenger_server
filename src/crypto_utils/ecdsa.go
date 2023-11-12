@@ -5,16 +5,15 @@ import (
 	"crypto/elliptic"
 	crand "crypto/rand"
 	"crypto/sha256"
-	"crypto/sha512"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"math/big"
 )
 
-var EllipticCurve = elliptic.P521()
+var EllipticCurve = elliptic.P256()
 
-const EllipticCurveBitSize = 521
+var EllipticCurveBitSize = EllipticCurve.Params().BitSize // 256
 
 func SerializeSignature(r, s *big.Int) []byte {
 	keySizeInBytes := (EllipticCurveBitSize + 7) / 8
@@ -42,6 +41,10 @@ func Base64ToBytes(data string) ([]byte, error) {
 	return base64.StdEncoding.DecodeString(data)
 }
 
+func BytesToBase64(data []byte) string {
+	return base64.StdEncoding.EncodeToString(data)
+}
+
 func PublicECDSAKeyFromBytes(data []byte) (*ecdsa.PublicKey, error) {
 	x, y := elliptic.Unmarshal(EllipticCurve, data)
 	if x == nil {
@@ -55,7 +58,7 @@ func PublicECDSAKeyToBytes(key *ecdsa.PublicKey) []byte {
 }
 
 func HashData(data []byte) []byte {
-	hashed := sha512.Sum512(data)
+	hashed := sha256.Sum256(data)
 	return hashed[:]
 }
 
@@ -105,5 +108,5 @@ func SignMessageBase64(privateKey *ecdsa.PrivateKey, data []byte) (string, error
 	if err != nil {
 		return "", err
 	}
-	return base64.StdEncoding.EncodeToString(signature), nil
+	return BytesToBase64(signature), nil
 }
