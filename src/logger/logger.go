@@ -32,14 +32,14 @@ var colorCodes = []string{
 
 const resetColor = "\033[0m"
 
-func padLeft(s string, pad string, length int) string {
+func padRight(s string, pad string, length int) string {
 	for len(s) < length {
-		s = pad + s
+		s = s + pad
 	}
 	return s
 }
 func padLevel(level VerboseLevel) string {
-	return padLeft(levelNames[level], " ", 7) // 7 is the length of the longest level name "WARNING"
+	return padRight(levelNames[level], " ", 7) // 7 is the length of the longest level name "WARNING"
 }
 
 type Logger struct {
@@ -145,7 +145,7 @@ func (l *Logger) getTreeName() string {
 		ptr = ptr.parent
 	}
 	if l.padName > 0 {
-		fullName = padLeft(fullName, " ", l.padName)
+		fullName = padRight(fullName, " ", l.padName)
 	}
 	return fullName
 }
@@ -161,11 +161,11 @@ func (l *Logger) getCaller() string {
 	if !l.printCaller {
 		return ""
 	}
-	_, file, line, _ := runtime.Caller(2)
+	_, file, line, _ := runtime.Caller(3)
 	file = filepath.Base(file)
 	callerStr := fmt.Sprintf("%s:%d", file, line)
 	if l.padCaller > 0 {
-		callerStr = padLeft(callerStr, " ", l.padCaller)
+		callerStr = padRight(callerStr, " ", l.padCaller)
 	}
 	return callerStr
 }
@@ -194,7 +194,7 @@ func (l *Logger) print(level VerboseLevel, doNewLine bool, args ...any) {
 		postfix = ""
 	}
 
-	res := fmt.Sprintf("%s%s%s%s>%s%s", timeStr, levelStr, name, callerStr, fmt.Sprint(args...), postfix)
+	res := fmt.Sprintf("%s%s%s%s > %s%s", timeStr, levelStr, name, callerStr, fmt.Sprint(args...), postfix)
 
 	if l.doColor {
 		res = colorCodes[level] + res + resetColor

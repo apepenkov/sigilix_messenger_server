@@ -110,3 +110,35 @@ func SignMessageBase64(privateKey *ecdsa.PrivateKey, data []byte) (string, error
 	}
 	return BytesToBase64(signature), nil
 }
+
+func PrivateKeyToBytes(privateKey *ecdsa.PrivateKey) []byte {
+	keySizeInBytes := (EllipticCurveBitSize + 7) / 8
+	ret := make([]byte, keySizeInBytes)
+	privateKey.D.FillBytes(ret)
+	return append(ret, PublicECDSAKeyToBytes(&privateKey.PublicKey)...)
+}
+
+func PrivateKeyToBytesBase64(privateKey *ecdsa.PrivateKey) string {
+	return BytesToBase64(PrivateKeyToBytes(privateKey))
+}
+
+func PrivateKeyFromBytes(data []byte) (*ecdsa.PrivateKey, error) {
+	keySizeInBytes := (EllipticCurveBitSize + 7) / 8
+	if len(data) != (3*keySizeInBytes)+1 { // 1 byte for the curve type
+		return nil, errors.New("invalid ECDSA private key")
+	}
+	d := new(big.Int).SetBytes(data[:keySizeInBytes])
+	x, y := elliptic.Unmarshal(EllipticCurve, data[keySizeInBytes:])
+	if x == nil {
+		return nil, errors.New("invalid ECDSA public key")
+	}
+	return &ecdsa.PrivateKey{PublicKey: ecdsa.PublicKey{Curve: EllipticCurve, X: x, Y: y}, D: d}, nil
+}
+
+func PrivateKeyFromBytesBase64(data string) (*ecdsa.PrivateKey, error) {
+	bytes, err := Base64ToBytes(data)
+	if err != nil {
+		return nil, err
+	}
+	return PrivateKeyFromBytes(bytes)
+}

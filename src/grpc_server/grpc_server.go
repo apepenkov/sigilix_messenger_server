@@ -34,7 +34,7 @@ const (
 	contextKeyId
 )
 
-func IncomingInterceptorSignatureValidator(srv *GRpcServer) grpc.UnaryServerInterceptor {
+func interceptor(srv *GRpcServer) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		reqId := smallRandomCode()
 		ctx = context.WithValue(ctx, contextKeyId, reqId)
@@ -97,25 +97,13 @@ func IncomingInterceptorSignatureValidator(srv *GRpcServer) grpc.UnaryServerInte
 		}
 
 		srv.logger.Infof("[%s] signature is valid, processing request", reqId)
-		return handler(ctx, req)
-	}
-}
-
-func serverSignerInterceptor(srv *GRpcServer) grpc.UnaryServerInterceptor {
-	return func(
-		ctx context.Context,
-		req interface{},
-		info *grpc.UnaryServerInfo,
-		handler grpc.UnaryHandler,
-	) (resp interface{}, err error) {
-		reqId := ctx.Value(contextKeyId).(string)
-		resp, err = handler(ctx, req)
+		resp, err := handler(ctx, req)
 
 		if err != nil {
 			return nil, err
 		}
 		srv.logger.Infof("[%s] signing response", reqId)
-		p, ok := resp.(proto.Message)
+		p, ok = resp.(proto.Message)
 		if !ok {
 			srv.logger.Errorf("[%s] response does not implement proto.Message interface", reqId)
 			return nil, status.Errorf(codes.Internal, "response does not implement proto.Message interface")
@@ -136,7 +124,7 @@ func serverSignerInterceptor(srv *GRpcServer) grpc.UnaryServerInterceptor {
 		}
 
 		// set "serv_signature_base64" header
-		md := metadata.New(map[string]string{
+		md = metadata.New(map[string]string{
 			"serv_signature_base64": signature,
 		})
 		if err = grpc.SetHeader(ctx, md); err != nil {
@@ -169,8 +157,7 @@ func NewGrpcServer(tls *tls.Certificate, storage storage.Storage, ecdsaPrivateKe
 	}
 	server := grpc.NewServer(
 		grpc.Creds(creds),
-		grpc.UnaryInterceptor(IncomingInterceptorSignatureValidator(srv)),
-		grpc.UnaryInterceptor(serverSignerInterceptor(srv)),
+		grpc.UnaryInterceptor(interceptor(srv)),
 	)
 	srv.rpcServ = server
 
