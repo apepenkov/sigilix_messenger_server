@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"github.com/apepenkov/sigilix_messenger_server/crypto_utils"
+	"github.com/apepenkov/sigilix_messenger_server/logger"
 	"github.com/apepenkov/sigilix_messenger_server/proto/messages"
 	"github.com/apepenkov/sigilix_messenger_server/storage"
 	"google.golang.org/grpc/codes"
@@ -16,14 +17,17 @@ type messagesService struct {
 	storage               storage.Storage
 	serverECDSAPublicKey  []byte
 	serverECDSAPrivateKey *ecdsa.PrivateKey
+	logger                *logger.Logger
 	messages.UnimplementedMessageServiceServer
 }
 
 func (ms *messagesService) InitChatFromInitializer(ctx context.Context, initChatFromInitializerRequest *messages.InitChatFromInitializerRequest) (*messages.InitChatFromInitializerResponse, error) {
-	userId := ctx.Value(userContextKey).(uint64)
+	userId := ctx.Value(contextKeyUser).(uint64)
+	reqId := ctx.Value(contextKeyId).(string)
 
 	created, creator, _, err := ms.storage.CreateChat(userId, initChatFromInitializerRequest.TargetUserId)
 	if err != nil {
+		ms.logger.Errorf("[%s] failed to create chat: %v", reqId, err)
 		return nil, status.Errorf(codes.Internal, "failed to create chat: %v", err)
 	}
 
@@ -40,6 +44,7 @@ func (ms *messagesService) InitChatFromInitializer(ctx context.Context, initChat
 	)
 
 	if err != nil {
+		ms.logger.Errorf("[%s] failed to put notification: %v, chat was removed.", reqId, err)
 		_ = ms.storage.DestroyChat(created.ChatId)
 		return nil, status.Errorf(codes.Internal, "failed to put notification: %v, chat was removed.", err)
 	}
@@ -48,29 +53,35 @@ func (ms *messagesService) InitChatFromInitializer(ctx context.Context, initChat
 }
 
 func (ms *messagesService) InitChatFromReceiver(ctx context.Context, initChatFromReceiverRequest *messages.InitChatFromReceiverRequest) (*messages.InitChatFromReceiverResponse, error) {
-	userId := ctx.Value(userContextKey).(uint64)
+	userId := ctx.Value(contextKeyUser).(uint64)
+	reqId := ctx.Value(contextKeyId).(string)
 
 	chat, err := ms.storage.GetChat(initChatFromReceiverRequest.ChatId)
 	if err != nil {
+		ms.logger.Errorf("[%s] failed to get chat: %v", reqId, err)
 		return nil, status.Errorf(codes.NotFound, "chat does not exist")
 	}
 
 	if chat.ReceiverId != userId {
+		ms.logger.Warningf("[%s] user is not a receiver of this chat", reqId)
 		return nil, status.Errorf(codes.PermissionDenied, "user is not a receiver of this chat")
 	}
 
 	if chat.State != storage.ChatStateInitiatorRequested {
+		ms.logger.Warningf("[%s] chat is not in initiator requested state. Maybe it was already accepted?", reqId)
 		return nil, status.Errorf(codes.PermissionDenied, "chat is not in initiator requested state. Maybe it was already accepted?")
 	}
 
 	err = ms.storage.UpdateChatState(chat.ChatId, storage.ChatStateReceiverAccepted)
 
 	if err != nil {
+		ms.logger.Errorf("[%s] failed to update chat state: %v", reqId, err)
 		return nil, status.Errorf(codes.Internal, "failed to update chat state: %v", err)
 	}
 
 	receiver, err := ms.storage.GetUserById(userId)
 	if err != nil {
+		ms.logger.Errorf("[%s] failed to get receiver: %v", reqId, err)
 		return nil, status.Errorf(codes.Internal, "failed to get receiver: %v", err)
 	}
 
@@ -87,6 +98,7 @@ func (ms *messagesService) InitChatFromReceiver(ctx context.Context, initChatFro
 	)
 
 	if err != nil {
+		ms.logger.Errorf("[%s] failed to put notification: %v, chat was removed.", reqId, err)
 		_ = ms.storage.DestroyChat(chat.ChatId)
 		return nil, status.Errorf(codes.Internal, "failed to put notification: %v, chat was removed.", err)
 	}
@@ -94,14 +106,17 @@ func (ms *messagesService) InitChatFromReceiver(ctx context.Context, initChatFro
 	return &messages.InitChatFromReceiverResponse{ChatId: chat.ChatId}, nil
 }
 func (ms *messagesService) UpdateChatRsaKey(ctx context.Context, updateChatRsaKeyRequest *messages.UpdateChatRsaKeyRequest) (*messages.UpdateChatRsaKeyResponse, error) {
-	userId := ctx.Value(userContextKey).(uint64)
+	userId := ctx.Value(contextKeyUser).(uint64)
+	reqId := ctx.Value(contextKeyId).(string)
 
 	chat, err := ms.storage.GetChat(updateChatRsaKeyRequest.ChatId)
 	if err != nil {
+		ms.logger.Errorf("[%s] failed to get chat: %v", reqId, err)
 		return nil, status.Errorf(codes.NotFound, "chat does not exist")
 	}
 
 	if userId != chat.InitiatorId && userId != chat.ReceiverId {
+		ms.logger.Warningf("[%s] user is not a member of this chat", reqId)
 		return nil, status.Errorf(codes.PermissionDenied, "user is not a member of this chat")
 	}
 
@@ -124,20 +139,24 @@ func (ms *messagesService) UpdateChatRsaKey(ctx context.Context, updateChatRsaKe
 	)
 
 	if err != nil {
+		ms.logger.Errorf("[%s] failed to put notification: %v, rsa key update was not sent.", reqId, err)
 		return nil, status.Errorf(codes.Internal, "failed to put notification: %v, rsa key update was not sent.", err)
 	}
 
 	return &messages.UpdateChatRsaKeyResponse{ChatId: chat.ChatId}, nil
 }
 func (ms *messagesService) SendMessage(ctx context.Context, sendMessageRequest *messages.SendMessageRequest) (*messages.SendMessageResponse, error) {
-	userId := ctx.Value(userContextKey).(uint64)
+	userId := ctx.Value(contextKeyUser).(uint64)
+	reqId := ctx.Value(contextKeyId).(string)
 
 	destChat, err := ms.storage.GetChat(sendMessageRequest.ChatId)
 	if err != nil {
+		ms.logger.Errorf("[%s] failed to get chat: %v", reqId, err)
 		return nil, status.Errorf(codes.NotFound, "chat does not exist")
 	}
 
 	if userId != destChat.InitiatorId && userId != destChat.ReceiverId {
+		ms.logger.Warningf("[%s] user is not a member of this chat", reqId)
 		return nil, status.Errorf(codes.PermissionDenied, "user is not a member of this chat")
 	}
 
@@ -149,6 +168,7 @@ func (ms *messagesService) SendMessage(ctx context.Context, sendMessageRequest *
 	messageId, err := ms.storage.GetNextMessageId(sendMessageRequest.ChatId)
 
 	if err != nil {
+		ms.logger.Errorf("[%s] failed to get next message id: %v", reqId, err)
 		return nil, status.Errorf(codes.Internal, "failed to get next message id: %v", err)
 	}
 
@@ -168,20 +188,24 @@ func (ms *messagesService) SendMessage(ctx context.Context, sendMessageRequest *
 	)
 
 	if err != nil {
+		ms.logger.Errorf("[%s] failed to put notification: %v, message was not sent.", reqId, err)
 		return nil, status.Errorf(codes.Internal, "failed to put notification: %v, message was not sent.", err)
 	}
 
 	return &messages.SendMessageResponse{ChatId: sendMessageRequest.ChatId, MessageId: messageId}, nil
 }
 func (ms *messagesService) SendFile(ctx context.Context, sendFileRequest *messages.SendFileRequest) (*messages.SendFileResponse, error) {
-	userId := ctx.Value(userContextKey).(uint64)
+	userId := ctx.Value(contextKeyUser).(uint64)
+	reqId := ctx.Value(contextKeyId).(string)
 
 	destChat, err := ms.storage.GetChat(sendFileRequest.ChatId)
 	if err != nil {
+		ms.logger.Errorf("[%s] failed to get chat: %v", reqId, err)
 		return nil, status.Errorf(codes.NotFound, "chat does not exist")
 	}
 
 	if userId != destChat.InitiatorId && userId != destChat.ReceiverId {
+		ms.logger.Warningf("[%s] user is not a member of this chat", reqId)
 		return nil, status.Errorf(codes.PermissionDenied, "user is not a member of this chat")
 	}
 
@@ -193,6 +217,7 @@ func (ms *messagesService) SendFile(ctx context.Context, sendFileRequest *messag
 	messageId, err := ms.storage.GetNextMessageId(sendFileRequest.ChatId)
 
 	if err != nil {
+		ms.logger.Errorf("[%s] failed to get next message id: %v", reqId, err)
 		return nil, status.Errorf(codes.Internal, "failed to get next message id: %v", err)
 	}
 
@@ -213,6 +238,7 @@ func (ms *messagesService) SendFile(ctx context.Context, sendFileRequest *messag
 	)
 
 	if err != nil {
+		ms.logger.Errorf("[%s] failed to put notification: %v, message was not sent.", reqId, err)
 		return nil, status.Errorf(codes.Internal, "failed to put notification: %v, message was not sent.", err)
 	}
 
@@ -220,7 +246,7 @@ func (ms *messagesService) SendFile(ctx context.Context, sendFileRequest *messag
 }
 func (ms *messagesService) SubscribeToIncomingNotifications(subReq *messages.SubscriptionRequest, stream messages.MessageService_SubscribeToIncomingNotificationsServer) error {
 	ctx := stream.Context()
-	userId := ctx.Value(userContextKey).(uint64)
+	userId := ctx.Value(contextKeyUser).(uint64)
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
