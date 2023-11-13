@@ -125,11 +125,14 @@ func (l *Logger) AddChild(name string) *Logger {
 
 		name: name,
 
-		printCaller: l.printCaller,
-		padCaller:   l.padCaller,
-		printTime:   l.printTime,
-		printLevel:  l.printLevel,
-		padName:     l.padName,
+		printCaller:   l.printCaller,
+		padCaller:     l.padCaller,
+		printTime:     l.printTime,
+		printLevel:    l.printLevel,
+		padName:       l.padName,
+		timeFormat:    l.timeFormat,
+		doColor:       l.doColor,
+		printNameTree: l.printNameTree,
 	}
 	return newl
 }
@@ -167,14 +170,14 @@ func (l *Logger) getCaller() string {
 	if l.padCaller > 0 {
 		callerStr = padRight(callerStr, " ", l.padCaller)
 	}
-	return callerStr
+	return " " + callerStr
 }
 
 func (l *Logger) getLevel(level VerboseLevel) string {
 	if !l.printLevel {
 		return ""
 	}
-	return " | " + padLevel(level) + " | "
+	return " |" + padLevel(level) + "| "
 }
 
 func (l *Logger) print(level VerboseLevel, doNewLine bool, args ...any) {

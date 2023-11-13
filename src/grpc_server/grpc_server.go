@@ -24,7 +24,7 @@ import (
 func smallRandomCode() string {
 	buf := make([]byte, 4)
 	_, _ = rand.Read(buf)
-	return hex.Dump(buf)
+	return hex.EncodeToString(buf)
 }
 
 type contextKey int
@@ -32,6 +32,7 @@ type contextKey int
 const (
 	contextKeyUser contextKey = iota
 	contextKeyId
+	contextKeySignature
 )
 
 func interceptor(srv *GRpcServer) grpc.UnaryServerInterceptor {
@@ -43,83 +44,84 @@ func interceptor(srv *GRpcServer) grpc.UnaryServerInterceptor {
 		md, ok := metadata.FromIncomingContext(ctx)
 
 		if !ok {
-			srv.logger.Errorf("[%s] metadata was not provided", reqId)
+			srv.logger.Errorf("[%s] metadata was not provided\n", reqId)
 			return nil, status.Errorf(codes.Unauthenticated, "metadata was not provided")
 		}
 		signatureBase64, ok := md["signature_base64"]
 		if !ok || len(signatureBase64) != 1 {
-			srv.logger.Errorf("[%s] signature was not provided", reqId)
+			srv.logger.Errorf("[%s] signature was not provided\n", reqId)
 			return nil, status.Errorf(codes.Unauthenticated, "signature was not provided or is invalid")
 		}
+		ctx = context.WithValue(ctx, contextKeySignature, signatureBase64[0])
 
 		// check type of request. if it's a login request, we don't need to validate anything
 		if info.FullMethod == "/users.UserService/Login" {
-			srv.logger.Infof("[%s] login request, skipping signature validation", reqId)
-			return handler(ctx, req)
+			srv.logger.Infof("[%s] login request, skipping signature validation\n", reqId)
+		} else {
+			// check if user_id is provided
+			userIdStr, ok := md["user_id"]
+			if !ok || len(userIdStr) != 1 {
+				srv.logger.Errorf("[%s] user_id was not provided\n", reqId)
+				return nil, status.Errorf(codes.Unauthenticated, "user_id was not provided or is invalid")
+			}
+			userId, err := strconv.ParseUint(userIdStr[0], 10, 64)
+			if err != nil {
+				srv.logger.Errorf("[%s] user_id is invalid: %s\n", reqId, userIdStr[0])
+				return nil, status.Errorf(codes.Unauthenticated, "user_id is invalid")
+			}
+
+			userData, err := srv.storage.GetUserById(userId)
+			if err != nil {
+				srv.logger.Errorf("[%s] failed to get user: %v\n", reqId, err)
+				return nil, status.Errorf(codes.NotFound, "user does not exist")
+			}
+
+			ctx = context.WithValue(ctx, contextKeyUser, userId)
+
+			p, ok := req.(proto.Message)
+			if !ok {
+				srv.logger.Errorf("[%s] request does not implement proto.Message interface\n", reqId)
+				return nil, status.Errorf(codes.Internal, "request does not implement proto.Message interface")
+			}
+			dataBytes, err := proto.Marshal(p)
+			if err != nil {
+				srv.logger.Errorf("[%s] failed to marshal request: %v\n", reqId, err)
+				return nil, status.Errorf(codes.Internal, "failed to marshal request: %v", err)
+			}
+
+			isSigValid, err := crypto_utils.ValidateECDSASignatureFromBase64(userData.EcdsaPublicKeyBytes, dataBytes, signatureBase64[0])
+
+			if err != nil || !isSigValid {
+				srv.logger.Errorf("[%s] failed to validate signature: %v %v\n", reqId, err, isSigValid)
+				return nil, status.Errorf(codes.Unauthenticated, "signature is invalid")
+			}
+
+			srv.logger.Infof("[%s] signature is valid, processing request\n", reqId)
 		}
 
-		// check if user_id is provided
-		userIdStr, ok := md["user_id"]
-		if !ok || len(userIdStr) != 1 {
-			srv.logger.Errorf("[%s] user_id was not provided", reqId)
-			return nil, status.Errorf(codes.Unauthenticated, "user_id was not provided or is invalid")
-		}
-		userId, err := strconv.ParseUint(userIdStr[0], 10, 64)
-		if err != nil {
-			srv.logger.Errorf("[%s] user_id is invalid: %s", reqId, userIdStr[0])
-			return nil, status.Errorf(codes.Unauthenticated, "user_id is invalid")
-		}
-
-		userData, err := srv.storage.GetUserById(userId)
-		if err != nil {
-			srv.logger.Errorf("[%s] failed to get user: %v", reqId, err)
-			return nil, status.Errorf(codes.NotFound, "user does not exist")
-		}
-
-		ctx = context.WithValue(ctx, contextKeyUser, userId)
-
-		p, ok := req.(proto.Message)
-		if !ok {
-			srv.logger.Errorf("[%s] request does not implement proto.Message interface", reqId)
-			return nil, status.Errorf(codes.Internal, "request does not implement proto.Message interface")
-		}
-		dataBytes, err := proto.Marshal(p)
-		if err != nil {
-			srv.logger.Errorf("[%s] failed to marshal request: %v", reqId, err)
-			return nil, status.Errorf(codes.Internal, "failed to marshal request: %v", err)
-		}
-
-		isSigValid, err := crypto_utils.ValidateECDSASignatureFromBase64(userData.EcdsaPublicKeyBytes, dataBytes, signatureBase64[0])
-
-		if err != nil || !isSigValid {
-			srv.logger.Errorf("[%s] failed to validate signature: %v %v", reqId, err, isSigValid)
-			return nil, status.Errorf(codes.Unauthenticated, "signature is invalid")
-		}
-
-		srv.logger.Infof("[%s] signature is valid, processing request", reqId)
 		resp, err := handler(ctx, req)
 
 		if err != nil {
 			return nil, err
 		}
-		srv.logger.Infof("[%s] signing response", reqId)
-		p, ok = resp.(proto.Message)
+		srv.logger.Infof("[%s] signing response\n", reqId)
+		p, ok := resp.(proto.Message)
 		if !ok {
-			srv.logger.Errorf("[%s] response does not implement proto.Message interface", reqId)
+			srv.logger.Errorf("[%s] response does not implement proto.Message interface\n", reqId)
 			return nil, status.Errorf(codes.Internal, "response does not implement proto.Message interface")
 		}
 
 		// Marshal the ProtoBuf message to bytes
 		data, err := proto.Marshal(p)
 		if err != nil {
-			srv.logger.Errorf("[%s] failed to marshal response: %v", reqId, err)
+			srv.logger.Errorf("[%s] failed to marshal response: %v\n", reqId, err)
 			return nil, status.Errorf(codes.Internal, "failed to marshal response: %v", err)
 		}
 
 		signature, err := crypto_utils.SignMessageBase64(srv.ecdsaPrivateKey, data)
 
 		if err != nil {
-			srv.logger.Errorf("[%s] failed to sign response: %v", reqId, err)
+			srv.logger.Errorf("[%s] failed to sign response: %v\n", reqId, err)
 			return nil, status.Errorf(codes.Internal, "failed to sign response: %v", err)
 		}
 
@@ -128,18 +130,18 @@ func interceptor(srv *GRpcServer) grpc.UnaryServerInterceptor {
 			"serv_signature_base64": signature,
 		})
 		if err = grpc.SetHeader(ctx, md); err != nil {
-			srv.logger.Errorf("[%s] failed to send metadata: %v", reqId, err)
+			srv.logger.Errorf("[%s] failed to send metadata: %v\n", reqId, err)
 			return nil, status.Errorf(codes.Internal, "failed to send metadata: %v", err)
 		}
 
-		srv.logger.Infof("[%s] response signed %s", reqId, signature)
+		srv.logger.Infof("[%s] response signed %s\n", reqId, signature)
 
 		return resp, err
 	}
 }
 
 type GRpcServer struct {
-	creds           *credentials.TransportCredentials
+	creds           credentials.TransportCredentials
 	rpcServ         *grpc.Server
 	storage         storage.Storage
 	ecdsaPrivateKey *ecdsa.PrivateKey
@@ -147,18 +149,29 @@ type GRpcServer struct {
 }
 
 func NewGrpcServer(tls *tls.Certificate, storage storage.Storage, ecdsaPrivateKey *ecdsa.PrivateKey, log *logger.Logger) *GRpcServer {
-	creds := credentials.NewServerTLSFromCert(tls)
+	var creds credentials.TransportCredentials = nil
+	if tls != nil {
+		creds = credentials.NewServerTLSFromCert(tls)
+	}
 	srv := &GRpcServer{
-		creds:           &creds,
+		creds:           creds,
 		rpcServ:         nil,
 		storage:         storage,
 		ecdsaPrivateKey: ecdsaPrivateKey,
 		logger:          log,
 	}
-	server := grpc.NewServer(
-		grpc.Creds(creds),
-		grpc.UnaryInterceptor(interceptor(srv)),
-	)
+	var server *grpc.Server
+	if creds == nil {
+		server = grpc.NewServer(
+			grpc.UnaryInterceptor(interceptor(srv)),
+		)
+		log.Warningln("running without TLS")
+	} else {
+		server = grpc.NewServer(
+			grpc.Creds(creds),
+			grpc.UnaryInterceptor(interceptor(srv)),
+		)
+	}
 	srv.rpcServ = server
 
 	usersServer := &userService{

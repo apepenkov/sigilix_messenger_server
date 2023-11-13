@@ -3,11 +3,13 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"github.com/apepenkov/sigilix_messenger_server/crypto_utils"
 	"github.com/apepenkov/sigilix_messenger_server/grpc_server"
 	"github.com/apepenkov/sigilix_messenger_server/logger"
 	"github.com/apepenkov/sigilix_messenger_server/storage"
 	"github.com/apepenkov/sigilix_messenger_server/storage/memory_storage"
+	"math/big"
 )
 
 func main() {
@@ -26,7 +28,7 @@ func main() {
 	log := logger.NewLogger(
 		"sigilix_server",
 		logger.WithColor(),
-		logger.WithPrintCaller(20),
+		logger.WithPrintCaller(30),
 		logger.WithPrintLevel(),
 		logger.WithPrintNameTree(20),
 		logger.WithPrintTime("2006-01-02 15:04:05.000"),
@@ -51,18 +53,18 @@ func main() {
 	}
 	//log.Infof("Parsed ECDSA key. Private: %s\n", crypto_utils.PrivateKeyToBytesBase64(ecdsaPrivateKey))
 	log.Infof("Parsed ECDSA key. Public: %s\n", crypto_utils.BytesToBase64(crypto_utils.PublicECDSAKeyToBytes(&ecdsaPrivateKey.PublicKey)))
+	var tlsCert *tls.Certificate
 
 	if certpath == "" || keypath == "" {
-		log.Fatalf("both -cert and -key must be provided\n")
+		tlsCert = nil
+	} else {
+		tlsCert_, err := tls.LoadX509KeyPair(certpath, keypath)
+		if err != nil {
+			log.Fatalf("failed to load cert: %v\n", err)
+		}
+		tlsCert = &tlsCert_
 	}
-
 	// load cert
-	var tlsCert tls.Certificate
-
-	tlsCert, err = tls.LoadX509KeyPair(certpath, keypath)
-	if err != nil {
-		log.Fatalf("failed to load cert: %v\n", err)
-	}
 
 	var stor storage.Storage
 
@@ -74,7 +76,7 @@ func main() {
 	}
 
 	srv := grpc_server.NewGrpcServer(
-		&tlsCert,
+		tlsCert,
 		stor,
 		ecdsaPrivateKey,
 		log,
@@ -93,4 +95,31 @@ func main() {
 			log.Fatalf("server failed: %v\n", err)
 		}
 	}
+}
+func main2() {
+	key, err := crypto_utils.GenerateKey()
+	if err != nil {
+		panic(err)
+	}
+	key.X, _ = big.NewInt(0).SetString("14581313189730622294751604965037280390928378765255123256068340371166498622098", 10)
+	key.Y, _ = big.NewInt(0).SetString("44595002123700500999069408116836750861660070657724097605924825364891295807889", 10)
+	key.D, _ = big.NewInt(0).SetString("24499662964065618945919505709802698962025494410790255344908628695817224130315", 10)
+
+	data := []byte("elena каширова лох")
+	fmt.Printf("PVT X: %s\n", key.X.String())
+	fmt.Printf("PVT Y: %s\n", key.Y.String())
+	fmt.Printf("PVT D: %s\n", key.D.String())
+	pubKeyBytes := crypto_utils.PublicECDSAKeyToBytes(&key.PublicKey)
+	pubKeyBase64 := crypto_utils.BytesToBase64(pubKeyBytes)
+	fmt.Printf("Public key: %s\n", pubKeyBase64)
+	sig, err := crypto_utils.SignMessageBase64(key, data)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Signature: %s\n", sig)
+	valid, err := crypto_utils.ValidateECDSASignatureFromBase64(pubKeyBytes, data, sig)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Signature: %v\n", valid)
 }

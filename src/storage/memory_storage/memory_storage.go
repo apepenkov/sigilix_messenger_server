@@ -95,11 +95,10 @@ func (s *inMemoryStorage) FetchOrCreateUser(ecdsaPublicKeyBytes []byte, initialR
 	user, ok := s.users[userId]
 	s.usersRWLock.RUnlock()
 
-	if !(bytes.Compare(user.InitialRsaKeyBytes, initialRsaKeyBytes) == 0) {
-		return nil, storage.ErrRsaMissmatch
-	}
-
 	if ok {
+		if !(bytes.Compare(user.InitialRsaKeyBytes, initialRsaKeyBytes) == 0) {
+			return nil, storage.ErrRsaMissmatch
+		}
 		return user, nil
 	} else {
 		user = &storage.User{

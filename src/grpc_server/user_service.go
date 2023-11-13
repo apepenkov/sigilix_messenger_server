@@ -22,9 +22,9 @@ type userService struct {
 }
 
 func (s *userService) Login(ctx context.Context, loginRequest *users.LoginRequest) (*users.LoginResponse, error) {
-	signatureBase64 := ctx.Value("signature_base64").(string)
+	signatureBase64 := ctx.Value(contextKeySignature).(string)
 	reqId := ctx.Value(contextKeyId).(string)
-	s.logger.Infof("[%s] login request for key %s", reqId, crypto_utils.BytesToBase64(loginRequest.ClientEcdsaPublicKey))
+	s.logger.Infof("[%s] login request for key %s\n", reqId, crypto_utils.BytesToBase64(loginRequest.ClientEcdsaPublicKey))
 
 	dataBytes, _ := proto.Marshal(loginRequest)
 
@@ -33,18 +33,18 @@ func (s *userService) Login(ctx context.Context, loginRequest *users.LoginReques
 	isSigValid, err := crypto_utils.ValidateECDSASignatureFromBase64(loginRequest.ClientEcdsaPublicKey, dataBytes, signatureBase64)
 
 	if err != nil {
-		s.logger.Errorf("[%s] failed to validate signature: %v", reqId, err)
+		s.logger.Errorf("[%s] failed to validate signature: %v\n", reqId, err)
 		return nil, status.Errorf(codes.Internal, "failed to validate signature: %v", err)
 	}
 
 	if !isSigValid {
-		s.logger.Errorf("[%s] signature is invalid", reqId)
+		s.logger.Errorf("[%s] signature is invalid\n", reqId)
 		return nil, status.Errorf(codes.Unauthenticated, "signature is invalid")
 	}
 
 	u, err := s.storage.FetchOrCreateUser(loginRequest.ClientEcdsaPublicKey, loginRequest.ClientRsaPublicKey)
 	if err != nil {
-		s.logger.Errorf("[%s] failed to fetch or create user: %v", reqId, err)
+		s.logger.Errorf("[%s] failed to fetch or create user: %v\n", reqId, err)
 		return nil, status.Errorf(codes.Internal, "failed to fetch or create user: %v", err)
 	}
 	md := metadata.New(map[string]string{
@@ -52,10 +52,10 @@ func (s *userService) Login(ctx context.Context, loginRequest *users.LoginReques
 		// Client MUST extract that value and pass it as a header in all requests
 	})
 	if err = grpc.SetHeader(ctx, md); err != nil {
-		s.logger.Errorf("[%s] failed to send metadata: %v", reqId, err)
+		s.logger.Errorf("[%s] failed to send metadata: %v\n", reqId, err)
 		return nil, status.Errorf(codes.Internal, "failed to send metadata: %v", err)
 	}
-	s.logger.Infof("[%s] login successful for user %d", reqId, u.UserId)
+	s.logger.Infof("[%s] login successful for user %d\n", reqId, u.UserId)
 	return &users.LoginResponse{
 		PrivateInfo:          u.ToPrivateInfo(),
 		UserId:               u.UserId,
@@ -67,13 +67,24 @@ func (s *userService) SetUsernameConfig(ctx context.Context, setUsernameConfigRe
 	userId := ctx.Value(contextKeyUser).(uint64)
 	reqId := ctx.Value(contextKeyId).(string)
 
-	err := s.storage.SetUsernameConfig(
+	same, err := s.storage.SearchForUserByUsername(setUsernameConfigRequest.Username)
+	if err != nil {
+		s.logger.Errorf("[%s] failed to search for user by username: %v\n", reqId, err)
+		return nil, status.Errorf(codes.Internal, "failed to search for user by username: %v", err)
+	}
+
+	if same != nil && same.UserId != userId {
+		s.logger.Errorf("[%s] username %s is already taken\n", reqId, setUsernameConfigRequest.Username)
+		return nil, status.Errorf(codes.AlreadyExists, "username %s is already taken", setUsernameConfigRequest.Username)
+	}
+
+	err = s.storage.SetUsernameConfig(
 		userId,
 		setUsernameConfigRequest.Username,
 		setUsernameConfigRequest.SearchByUsernameAllowed,
 	)
 	if err != nil {
-		s.logger.Errorf("[%s] failed to set username config: %v", reqId, err)
+		s.logger.Errorf("[%s] failed to set username config: %v\n", reqId, err)
 		return nil, status.Errorf(codes.Internal, "failed to set username config: %v", err)
 	}
 	return &users.SetUsernameConfigResponse{Success: true}, nil
@@ -84,7 +95,7 @@ func (s *userService) SearchByUsername(ctx context.Context, searchByUsernameRequ
 	reqId := ctx.Value(contextKeyId).(string)
 
 	if err != nil {
-		s.logger.Errorf("[%s] failed to search for user by username: %v", reqId, err)
+		s.logger.Errorf("[%s] failed to search for user by username: %v\n", reqId, err)
 		return nil, status.Errorf(codes.Internal, "failed to search for user by username: %v", err)
 	}
 	if found == nil {
