@@ -135,6 +135,7 @@ func (s *inMemoryStorage) SearchForUserByUsername(username string) (*storage.Use
 			if !user.SearchByUsernameAllowed {
 				return nil, nil // we don't want to leak information about users who don't want to be found
 			}
+			return user, nil
 		}
 	}
 	return nil, nil
