@@ -1,6 +1,7 @@
 package grpc_server
 
 import (
+	"bytes"
 	"context"
 	"github.com/apepenkov/sigilix_messenger_server/crypto_utils"
 	"github.com/apepenkov/sigilix_messenger_server/logger"
@@ -55,6 +56,11 @@ func (s *userService) Login(ctx context.Context, loginRequest *users.LoginReques
 		s.logger.Errorf("[%s] failed to send metadata: %v\n", reqId, err)
 		return nil, status.Errorf(codes.Internal, "failed to send metadata: %v", err)
 	}
+
+	if bytes.Compare(u.InitialRsaKeyBytes, loginRequest.ClientRsaPublicKey) != 0 {
+		return nil, status.Errorf(codes.PermissionDenied, "RSA key mismatch")
+	}
+
 	s.logger.Infof("[%s] login successful for user %d\n", reqId, u.UserId)
 	return &users.LoginResponse{
 		PrivateInfo:          u.ToPrivateInfo(),
