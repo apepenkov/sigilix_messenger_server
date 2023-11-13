@@ -268,6 +268,24 @@ func (ms *messagesService) SubscribeToIncomingNotifications(subReq *messages.Sub
 	}
 }
 
+func (ms *messagesService) GetNotifications(ctx context.Context, getNotificationsRequest *messages.GetNotificationsRequest) (*messages.GetNotificationsResponse, error) {
+	userId := ctx.Value(contextKeyUser).(uint64)
+	reqId := ctx.Value(contextKeyId).(string)
+
+	if getNotificationsRequest.Limit <= 0 {
+		ms.logger.Errorf("[%s] invalid limit: %d", reqId, getNotificationsRequest.Limit)
+		return nil, status.Errorf(codes.InvalidArgument, "invalid limit: %d", getNotificationsRequest.Limit)
+	}
+
+	notifications, err := ms.storage.FetchAndRemoveNotifications(userId, int(getNotificationsRequest.Limit))
+	if err != nil {
+		ms.logger.Errorf("[%s] failed to fetch notifications: %v", reqId, err)
+		return nil, status.Errorf(codes.Internal, "failed to fetch notifications: %v", err)
+	}
+
+	return &messages.GetNotificationsResponse{Notifications: notifications}, nil
+}
+
 func signAndSendNotification(stream messages.MessageService_SubscribeToIncomingNotificationsServer, notification *messages.IncomingNotification, privateKey *ecdsa.PrivateKey) error {
 
 	var toSign []byte

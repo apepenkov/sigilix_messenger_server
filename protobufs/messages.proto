@@ -119,12 +119,21 @@ message IncomingNotification {
   bytes ecdsa_signature = 6;
 }
 
+message GetNotificationsRequest {
+  uint32 limit = 1;
+}
+
+message GetNotificationsResponse {
+  repeated IncomingNotification notifications = 1;
+}
+
 service MessageService {
   rpc InitChatFromInitializer(InitChatFromInitializerRequest) returns (InitChatFromInitializerResponse);
   rpc InitChatFromReceiver(InitChatFromReceiverRequest) returns (InitChatFromReceiverResponse);
   rpc UpdateChatRsaKey(UpdateChatRsaKeyRequest) returns (UpdateChatRsaKeyResponse);
   rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
   rpc SendFile(SendFileRequest) returns (SendFileResponse);
+  rpc GetNotifications(GetNotificationsRequest) returns (GetNotificationsResponse);
 
   rpc SubscribeToIncomingNotifications(SubscriptionRequest) returns (stream IncomingNotification);
 }
