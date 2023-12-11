@@ -9,17 +9,19 @@ import (
 	"github.com/apepenkov/sigilix_messenger_server/logger"
 	"github.com/apepenkov/sigilix_messenger_server/storage"
 	"github.com/apepenkov/sigilix_messenger_server/storage/memory_storage"
+	"github.com/apepenkov/sigilix_messenger_server/storage/sqlite_storage"
 	"math/big"
 )
 
 func main() {
-	var listenAddr, certpath, keypath, base64ecdsakey, storageToUse string
+	var listenAddr, certpath, keypath, base64ecdsakey, storageToUse, sqliteStoragePath string
 	var generateEcdsaKey, autoRestart bool
 	flag.StringVar(&listenAddr, "listen", "localhost:8080", "address to listen on")
 	flag.StringVar(&certpath, "cert", "", "path to -cert.pem file")
 	flag.StringVar(&keypath, "key", "", "path to -key.pem file")
 	flag.StringVar(&base64ecdsakey, "ecdsakey", "", "base64-encoded ECDSA private key")
 	flag.StringVar(&storageToUse, "storage", "memory", "storage to use: memory or sqlite")
+	flag.StringVar(&sqliteStoragePath, "sqlitepath", "sigilix.db", "path to sqlite database")
 	flag.BoolVar(&generateEcdsaKey, "generatekey", false, "generate ECDSA key and print it to stdout")
 	flag.BoolVar(&autoRestart, "autorestart", false, "automatically restart server on panic")
 
@@ -71,8 +73,13 @@ func main() {
 	switch storageToUse {
 	case "memory":
 		stor = memory_storage.NewInMemoryStorage()
+	case "sqlite":
+		stor, err = sqlite_storage.NewSqliteStorage(sqliteStoragePath)
 	default:
 		log.Fatalf("unknown storage: %s\n", storageToUse)
+	}
+	if err != nil {
+		log.Fatalf("failed to initialize storage: %v\n", err)
 	}
 
 	srv := grpc_server.NewGrpcServer(

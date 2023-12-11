@@ -72,16 +72,19 @@ func (s *userService) Login(ctx context.Context, loginRequest *users.LoginReques
 func (s *userService) SetUsernameConfig(ctx context.Context, setUsernameConfigRequest *users.SetUsernameConfigRequest) (*users.SetUsernameConfigResponse, error) {
 	userId := ctx.Value(contextKeyUser).(uint64)
 	reqId := ctx.Value(contextKeyId).(string)
+	var err error
 
-	same, err := s.storage.SearchForUserByUsername(setUsernameConfigRequest.Username)
-	if err != nil {
-		s.logger.Errorf("[%s] failed to search for user by username: %v\n", reqId, err)
-		return nil, status.Errorf(codes.Internal, "failed to search for user by username: %v", err)
-	}
+	if setUsernameConfigRequest.Username != "" {
+		same, err := s.storage.SearchForUserByUsername(setUsernameConfigRequest.Username)
+		if err != nil {
+			s.logger.Errorf("[%s] failed to search for user by username: %v\n", reqId, err)
+			return nil, status.Errorf(codes.Internal, "failed to search for user by username: %v", err)
+		}
 
-	if same != nil && same.UserId != userId {
-		s.logger.Errorf("[%s] username %s is already taken\n", reqId, setUsernameConfigRequest.Username)
-		return nil, status.Errorf(codes.AlreadyExists, "username %s is already taken", setUsernameConfigRequest.Username)
+		if same != nil && same.UserId != userId {
+			s.logger.Errorf("[%s] username %s is already taken\n", reqId, setUsernameConfigRequest.Username)
+			return nil, status.Errorf(codes.AlreadyExists, "username %s is already taken", setUsernameConfigRequest.Username)
+		}
 	}
 
 	err = s.storage.SetUsernameConfig(

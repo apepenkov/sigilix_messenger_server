@@ -288,30 +288,31 @@ func (ms *messagesService) GetNotifications(ctx context.Context, getNotification
 
 func signAndSendNotification(stream messages.MessageService_SubscribeToIncomingNotificationsServer, notification *messages.IncomingNotification, privateKey *ecdsa.PrivateKey) error {
 
-	var toSign []byte
+	var marshalled []byte
 	var err error
-
-	// Extract the actual message from the oneof interface
 	switch x := notification.Notification.(type) {
 	case *messages.IncomingNotification_InitChatFromInitializerNotification:
-		toSign, err = proto.Marshal(x.InitChatFromInitializerNotification)
+		marshalled, err = proto.Marshal(x.InitChatFromInitializerNotification)
 	case *messages.IncomingNotification_InitChatFromReceiverNotification:
-		toSign, err = proto.Marshal(x.InitChatFromReceiverNotification)
+		marshalled, err = proto.Marshal(x.InitChatFromReceiverNotification)
 	case *messages.IncomingNotification_UpdateChatRsaKeyNotification:
-		toSign, err = proto.Marshal(x.UpdateChatRsaKeyNotification)
+		marshalled, err = proto.Marshal(x.UpdateChatRsaKeyNotification)
 	case *messages.IncomingNotification_SendMessageNotification:
-		toSign, err = proto.Marshal(x.SendMessageNotification)
+		marshalled, err = proto.Marshal(x.SendMessageNotification)
 	case *messages.IncomingNotification_SendFileNotification:
-		toSign, err = proto.Marshal(x.SendFileNotification)
+		marshalled, err = proto.Marshal(x.SendFileNotification)
 	default:
 		return status.Errorf(codes.Internal, "unknown notification type")
+	}
+	if err != nil {
+		return err
 	}
 
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to marshal notification for signing: %v", err)
 	}
 
-	signature, err := crypto_utils.SignMessage(privateKey, toSign)
+	signature, err := crypto_utils.SignMessage(privateKey, marshalled)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to sign notification: %v", err)
 	}

@@ -39,8 +39,13 @@ func interceptor(srv *GRpcServer) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		reqId := smallRandomCode()
 		ctx = context.WithValue(ctx, contextKeyId, reqId)
-
-		srv.logger.Infof("[%s] incoming request: %s\n", reqId, info.FullMethod)
+		shouldNotPrint := false
+		if info.FullMethod == "/messages.MessageService/GetNotifications" {
+			shouldNotPrint = true
+		}
+		if !shouldNotPrint {
+			srv.logger.Infof("[%s] incoming request: %s\n", reqId, info.FullMethod)
+		}
 		md, ok := metadata.FromIncomingContext(ctx)
 
 		if !ok {
@@ -95,8 +100,9 @@ func interceptor(srv *GRpcServer) grpc.UnaryServerInterceptor {
 				srv.logger.Errorf("[%s] failed to validate signature: %v %v\n", reqId, err, isSigValid)
 				return nil, status.Errorf(codes.Unauthenticated, "signature is invalid")
 			}
-
-			srv.logger.Infof("[%s] signature is valid, processing request\n", reqId)
+			if !shouldNotPrint {
+				srv.logger.Infof("[%s] signature is valid, processing request\n", reqId)
+			}
 		}
 
 		resp, err := handler(ctx, req)
@@ -104,7 +110,9 @@ func interceptor(srv *GRpcServer) grpc.UnaryServerInterceptor {
 		if err != nil {
 			return nil, err
 		}
-		srv.logger.Infof("[%s] signing response\n", reqId)
+		if !shouldNotPrint {
+			srv.logger.Infof("[%s] signing response\n", reqId)
+		}
 		p, ok := resp.(proto.Message)
 		if !ok {
 			srv.logger.Errorf("[%s] response does not implement proto.Message interface\n", reqId)
@@ -133,8 +141,9 @@ func interceptor(srv *GRpcServer) grpc.UnaryServerInterceptor {
 			srv.logger.Errorf("[%s] failed to send metadata: %v\n", reqId, err)
 			return nil, status.Errorf(codes.Internal, "failed to send metadata: %v", err)
 		}
-
-		srv.logger.Infof("[%s] response signed %s\n", reqId, signature)
+		if !shouldNotPrint {
+			srv.logger.Infof("[%s] response signed %s\n", reqId, signature)
+		}
 
 		return resp, err
 	}
