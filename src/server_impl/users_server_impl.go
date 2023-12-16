@@ -9,9 +9,6 @@ import (
 	"github.com/apepenkov/sigilix_messenger_server/custom_types"
 	"github.com/apepenkov/sigilix_messenger_server/logger"
 	"github.com/apepenkov/sigilix_messenger_server/storage"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
-	"strconv"
 )
 
 type contextKey int
@@ -56,15 +53,14 @@ func (s *ServerImpl) Login(ctx context.Context, dataBytes []byte, clientEcdsaPub
 		//return nil, status.Errorf(codes.Internal, "failed to fetch or create user: %v", err)
 		return nil, &Error{ErrInternal, fmt.Sprintf("failed to fetch or create user: %v", err)}
 	}
-	md := metadata.New(map[string]string{
-		"user_id": strconv.FormatUint(u.UserId, 10),
-		// Client MUST extract that value and pass it as a header in all requests
-	})
-	if err = grpc.SetHeader(ctx, md); err != nil {
-		s.Logger.Errorf("[%s] failed to send metadata: %v\n", reqId, err)
-		//return nil, status.Errorf(codes.Internal, "failed to send metadata: %v", err)
-		return nil, &Error{ErrInternal, fmt.Sprintf("failed to send metadata: %v", err)}
-	}
+	//md := metadata.New(map[string]string{
+	//	"user_id": strconv.FormatUint(u.UserId, 10),
+	//})
+	//if err = grpc.SetHeader(ctx, md); err != nil {
+	//	s.Logger.Errorf("[%s] failed to send metadata: %v\n", reqId, err)
+	//	//return nil, status.Errorf(codes.Internal, "failed to send metadata: %v", err)
+	//	return nil, &Error{ErrInternal, fmt.Sprintf("failed to send metadata: %v", err)}
+	//}
 
 	if bytes.Compare(u.InitialRsaKeyBytes, clientRsaPublicKey) != 0 {
 		//return nil, status.Errorf(codes.PermissionDenied, "RSA key mismatch")

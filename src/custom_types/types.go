@@ -320,10 +320,6 @@ func PublicUserInfoFromProtobuf(userInfo *users.PublicUserInfo) *PublicUserInfo 
 	}
 }
 
-type GetNotificationsRequest struct {
-	Limit uint32 `json:"limit"`
-}
-
 func (g *GetNotificationsRequest) ToProtobuf() proto.Message {
 	return &messages.GetNotificationsRequest{
 		Limit: g.Limit,

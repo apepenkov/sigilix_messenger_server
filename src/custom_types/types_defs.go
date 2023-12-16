@@ -136,6 +136,10 @@ func (i *IncomingNotification) MarshalJSON() ([]byte, error) {
 	return json.Marshal(r)
 }
 
+type GetNotificationsRequest struct {
+	Limit uint32 `json:"limit"`
+}
+
 type GetNotificationsResponse struct {
 	Notifications []*IncomingNotification `json:"notifications"`
 }

@@ -31,7 +31,9 @@ type Serv struct {
 func (s *Serv) Middleware(next http.Handler) http.Handler {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
+		// set content type to json
+		w.Header().Set("Content-Type", "application/json")
+		s.Logger.Infof("Incoming request: [%-4s] %s, headers: %v\n", r.Method, r.URL.Path, r.Header)
 		mbClose := func() {
 			if r.Body != nil {
 				_ = r.Body.Close()
@@ -67,8 +69,7 @@ func (s *Serv) Middleware(next http.Handler) http.Handler {
 		if !shouldNotPrint {
 			s.Logger.Infof("[%s] incoming request: %s\n", reqId, path)
 		}
-
-		signatureBase64 := r.Header.Get("signature_base64")
+		signatureBase64 := r.Header.Get("X-Sigilix-Signature")
 		if signatureBase64 == "" {
 			s.Logger.Errorf("[%s] signature was not provided\n", reqId)
 			e := &server_impl.Error{Code: server_impl.ErrUnauthenticated, Message: "signature was not provided or is invalid"}
@@ -82,7 +83,7 @@ func (s *Serv) Middleware(next http.Handler) http.Handler {
 		if path == "/api/users/login" {
 			s.Logger.Infof("[%s] login request, skipping signature validation\n", reqId)
 		} else {
-			userIdStr := r.Header.Get("user_id")
+			userIdStr := r.Header.Get("X-Sigilix-User-Id")
 			if userIdStr == "" {
 				s.Logger.Errorf("[%s] user_id was not provided\n", reqId)
 				e := &server_impl.Error{Code: server_impl.ErrUnauthenticated, Message: "user_id was not provided or is invalid"}
@@ -109,7 +110,7 @@ func (s *Serv) Middleware(next http.Handler) http.Handler {
 				return
 			}
 
-			r = r.WithContext(context.WithValue(r.Context(), server_impl.ContextKeyUser, userData))
+			r = r.WithContext(context.WithValue(r.Context(), server_impl.ContextKeyUser, userData.UserId))
 
 			dataBytes := []byte{}
 			// read body
@@ -147,6 +148,7 @@ func (s *Serv) Middleware(next http.Handler) http.Handler {
 		}
 
 		next.ServeHTTP(w, r)
+
 		mbClose()
 	})
 }
@@ -551,7 +553,7 @@ func New(serv *server_impl.ServerImpl, logger *logger.Logger, addr string) *Serv
 	s.ServerMux = http.NewServeMux()
 
 	s.ServerMux.Handle("/api/users/login", http.HandlerFunc(s.Login))
-	s.ServerMux.Handle("/api/users/ser_username_config", http.HandlerFunc(s.SetUsernameConfig))
+	s.ServerMux.Handle("/api/users/set_username_config", http.HandlerFunc(s.SetUsernameConfig))
 	s.ServerMux.Handle("/api/users/search_by_username", http.HandlerFunc(s.SearchByUsername))
 
 	s.ServerMux.Handle("/api/messages/init_chat_from_initializer", http.HandlerFunc(s.InitChatFromInitializer))
