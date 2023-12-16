@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"github.com/apepenkov/sigilix_messenger_server/crypto_utils"
 	"github.com/apepenkov/sigilix_messenger_server/grpc_server"
+	"github.com/apepenkov/sigilix_messenger_server/http_server"
 	"github.com/apepenkov/sigilix_messenger_server/logger"
+	"github.com/apepenkov/sigilix_messenger_server/server_impl"
 	"github.com/apepenkov/sigilix_messenger_server/storage"
 	"github.com/apepenkov/sigilix_messenger_server/storage/memory_storage"
 	"github.com/apepenkov/sigilix_messenger_server/storage/sqlite_storage"
@@ -14,9 +16,10 @@ import (
 )
 
 func main() {
-	var listenAddr, certpath, keypath, base64ecdsakey, storageToUse, sqliteStoragePath string
+	var listenAddr, httpListenAddr, certpath, keypath, base64ecdsakey, storageToUse, sqliteStoragePath string
 	var generateEcdsaKey, autoRestart bool
 	flag.StringVar(&listenAddr, "listen", "localhost:8080", "address to listen on")
+	flag.StringVar(&httpListenAddr, "http", "localhost:7312", "address to listen on for http")
 	flag.StringVar(&certpath, "cert", "", "path to -cert.pem file")
 	flag.StringVar(&keypath, "key", "", "path to -key.pem file")
 	flag.StringVar(&base64ecdsakey, "ecdsakey", "", "base64-encoded ECDSA private key")
@@ -82,12 +85,29 @@ func main() {
 		log.Fatalf("failed to initialize storage: %v\n", err)
 	}
 
+	backend := &server_impl.ServerImpl{
+		Storage:               stor,
+		ServerECDSAPublicKey:  crypto_utils.PublicECDSAKeyToBytes(&ecdsaPrivateKey.PublicKey),
+		ServerECDSAPrivateKey: ecdsaPrivateKey,
+		Logger:                log.AddChild("backend"),
+	}
+
 	srv := grpc_server.NewGrpcServer(
 		tlsCert,
 		stor,
 		ecdsaPrivateKey,
 		log,
+		backend,
 	)
+
+	httpServ := http_server.New(backend, log.AddChild("http"), listenAddr)
+
+	go func() {
+		err2 := httpServ.Start()
+		if err2 != nil {
+			log.Fatalf("http server failed: %v\n", err)
+		}
+	}()
 
 	if autoRestart {
 		for {

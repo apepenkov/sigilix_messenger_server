@@ -33,7 +33,7 @@ const fS = true // disable signature requirement
 func interceptor(srv *GRpcServer) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		reqId := smallRandomCode()
-		ctx = context.WithValue(ctx, server_impl.ContextKeyId, reqId)
+		ctx = context.WithValue(ctx, server_impl.ContextKeyReqId, reqId)
 		shouldNotPrint := false
 		if info.FullMethod == "/messages.MessageService/GetNotifications" {
 			shouldNotPrint = true
@@ -158,7 +158,7 @@ type GRpcServer struct {
 	logger          *logger.Logger
 }
 
-func NewGrpcServer(tls *tls.Certificate, storage storage.Storage, ecdsaPrivateKey *ecdsa.PrivateKey, log *logger.Logger) *GRpcServer {
+func NewGrpcServer(tls *tls.Certificate, storage storage.Storage, ecdsaPrivateKey *ecdsa.PrivateKey, log *logger.Logger, backend *server_impl.ServerImpl) *GRpcServer {
 	var creds credentials.TransportCredentials = nil
 	if tls != nil {
 		creds = credentials.NewServerTLSFromCert(tls)
@@ -183,13 +183,6 @@ func NewGrpcServer(tls *tls.Certificate, storage storage.Storage, ecdsaPrivateKe
 		)
 	}
 	srv.rpcServ = server
-
-	backend := &server_impl.ServerImpl{
-		Storage:               storage,
-		ServerECDSAPublicKey:  crypto_utils.PublicECDSAKeyToBytes(&ecdsaPrivateKey.PublicKey),
-		ServerECDSAPrivateKey: ecdsaPrivateKey,
-		Logger:                log.AddChild("backend"),
-	}
 
 	usersServer := &userService{serv: backend}
 	messagesServer := &messagesService{serv: backend}

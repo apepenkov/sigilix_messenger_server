@@ -18,7 +18,7 @@ type contextKey int
 
 const (
 	ContextKeyUser contextKey = iota
-	ContextKeyId
+	ContextKeyReqId
 	ContextKeySignature
 )
 
@@ -31,7 +31,7 @@ type ServerImpl struct {
 
 func (s *ServerImpl) Login(ctx context.Context, dataBytes []byte, clientEcdsaPublicKey []byte, clientRsaPublicKey []byte) (*custom_types.LoginResponse, *Error) {
 	signatureBase64 := ctx.Value(ContextKeySignature).(string)
-	reqId := ctx.Value(ContextKeyId).(string)
+	reqId := ctx.Value(ContextKeyReqId).(string)
 	s.Logger.Infof("[%s] login request for key %s\n", reqId, crypto_utils.BytesToBase64(clientEcdsaPublicKey))
 
 	// we need to validate the signature within the request ONLY in this function.
@@ -81,7 +81,7 @@ func (s *ServerImpl) Login(ctx context.Context, dataBytes []byte, clientEcdsaPub
 
 func (s *ServerImpl) SetUsernameConfig(ctx context.Context, setUsername string, searchable bool) (*custom_types.SetUsernameConfigResponse, *Error) {
 	userId := ctx.Value(ContextKeyUser).(uint64)
-	reqId := ctx.Value(ContextKeyId).(string)
+	reqId := ctx.Value(ContextKeyReqId).(string)
 	var err error
 
 	if setUsername != "" {
@@ -114,7 +114,7 @@ func (s *ServerImpl) SetUsernameConfig(ctx context.Context, setUsername string, 
 
 func (s *ServerImpl) SearchByUsername(ctx context.Context, searchUsername string) (*custom_types.SearchByUsernameResponse, *Error) {
 	found, err := s.Storage.SearchForUserByUsername(searchUsername)
-	reqId := ctx.Value(ContextKeyId).(string)
+	reqId := ctx.Value(ContextKeyReqId).(string)
 
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to search for user by username: %v\n", reqId, err)

@@ -1,9 +1,22 @@
 package custom_types
 
 import (
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
 	"github.com/apepenkov/sigilix_messenger_server/proto/messages"
 	"github.com/apepenkov/sigilix_messenger_server/proto/users"
 	"google.golang.org/protobuf/proto"
+)
+
+type NotificationType string
+
+const (
+	notificationTypeInitChatFromInitializer NotificationType = "InitChatFromInitializer"
+	notificationTypeInitChatFromReceiver    NotificationType = "InitChatFromReceiver"
+	notificationTypeUpdateChatRsaKey        NotificationType = "UpdateChatRsaKey"
+	notificationTypeSendMessage             NotificationType = "SendMessage"
+	notificationTypeSendFile                NotificationType = "SendFile"
 )
 
 type Base64Bytes []byte
@@ -13,7 +26,7 @@ type Protobuffable interface {
 }
 
 type SomeNotification interface {
-	ImplNotification()
+	NotificationType() NotificationType
 }
 
 type PublicUserInfo struct {
@@ -139,7 +152,9 @@ type InitChatFromInitializerNotification struct {
 	InitializerUserInfo *PublicUserInfo `json:"initializer_user_info"`
 }
 
-func (i *InitChatFromInitializerNotification) ImplNotification() {}
+func (i *InitChatFromInitializerNotification) NotificationType() NotificationType {
+	return notificationTypeInitChatFromInitializer
+}
 
 func (i *InitChatFromInitializerNotification) ToProtobuf() proto.Message {
 	return &messages.InitChatFromInitializerNotification{
@@ -173,7 +188,9 @@ type InitChatFromReceiverNotification struct {
 	ReceiverUserInfo *PublicUserInfo `json:"receiver_user_info"`
 }
 
-func (i *InitChatFromReceiverNotification) ImplNotification() {}
+func (i *InitChatFromReceiverNotification) NotificationType() NotificationType {
+	return notificationTypeInitChatFromReceiver
+}
 
 func (i *InitChatFromReceiverNotification) ToProtobuf() proto.Message {
 	return &messages.InitChatFromReceiverNotification{
@@ -210,7 +227,9 @@ type UpdateChatRsaKeyNotification struct {
 	RsaPublicKey Base64Bytes `json:"rsa_public_key"`
 }
 
-func (u *UpdateChatRsaKeyNotification) ImplNotification() {}
+func (u *UpdateChatRsaKeyNotification) NotificationType() NotificationType {
+	return notificationTypeUpdateChatRsaKey
+}
 
 func (u *UpdateChatRsaKeyNotification) ToProtobuf() proto.Message {
 	return &messages.UpdateChatRsaKeyNotification{
@@ -254,7 +273,9 @@ type SendMessageNotification struct {
 	MessageEcdsaSignature Base64Bytes `json:"message_ecdsa_signature"`
 }
 
-func (s *SendMessageNotification) ImplNotification() {}
+func (s *SendMessageNotification) NotificationType() NotificationType {
+	return notificationTypeSendMessage
+}
 
 func (s *SendMessageNotification) ToProtobuf() proto.Message {
 	return &messages.SendMessageNotification{
@@ -303,7 +324,7 @@ type SendFileNotification struct {
 	FileEcdsaSignature Base64Bytes `json:"file_ecdsa_signature"`
 }
 
-func (s *SendFileNotification) ImplNotification() {}
+func (s *SendFileNotification) NotificationType() NotificationType { return notificationTypeSendFile }
 
 func (s *SendFileNotification) ToProtobuf() proto.Message {
 	return &messages.SendFileNotification{
@@ -418,6 +439,19 @@ func IncomingNotificationFromProtobuf(notification *messages.IncomingNotificatio
 	}
 }
 
+type NotificationWithTypeInfo struct {
+	Notification SomeNotification `json:"notif"`
+	Type         NotificationType `json:"type"`
+}
+
+func (i *IncomingNotification) MarshalJSON() ([]byte, error) {
+	r := &NotificationWithTypeInfo{
+		Notification: i.Notification,
+		Type:         i.Notification.NotificationType(),
+	}
+	return json.Marshal(r)
+}
+
 func PublicUserInfoFromProtobuf(userInfo *users.PublicUserInfo) *PublicUserInfo {
 	return &PublicUserInfo{
 		UserId:              userInfo.UserId,
@@ -449,4 +483,22 @@ func (g *GetNotificationsResponse) ToProtobuf() proto.Message {
 	return &messages.GetNotificationsResponse{
 		Notifications: notifications,
 	}
+}
+
+func (b *Base64Bytes) MarshalJSON() ([]byte, error) {
+	return []byte(fmt.Sprintf("\"%s\"", base64.StdEncoding.EncodeToString(*b))), nil
+}
+
+func (b *Base64Bytes) UnmarshalJSON(data []byte) error {
+	// Remove the quotes from the JSON string
+	str := string(data[1 : len(data)-1])
+
+	// Decode from base64
+	decoded, err := base64.StdEncoding.DecodeString(str)
+	if err != nil {
+		return err
+	}
+
+	*b = decoded
+	return nil
 }

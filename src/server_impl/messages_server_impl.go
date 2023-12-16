@@ -12,7 +12,7 @@ import (
 
 func (s *ServerImpl) InitChatFromInitializer(ctx context.Context, TargetUserId uint64) (*custom_types.InitChatFromInitializerResponse, *Error) {
 	userId := ctx.Value(ContextKeyUser).(uint64)
-	reqId := ctx.Value(ContextKeyId).(string)
+	reqId := ctx.Value(ContextKeyReqId).(string)
 
 	created, creator, _, err := s.Storage.CreateChat(userId, TargetUserId)
 	if err != nil {
@@ -43,7 +43,7 @@ func (s *ServerImpl) InitChatFromInitializer(ctx context.Context, TargetUserId u
 
 func (s *ServerImpl) InitChatFromReceiver(ctx context.Context, chatId uint64) (*custom_types.InitChatFromReceiverResponse, *Error) {
 	userId := ctx.Value(ContextKeyUser).(uint64)
-	reqId := ctx.Value(ContextKeyId).(string)
+	reqId := ctx.Value(ContextKeyReqId).(string)
 
 	chat, err := s.Storage.GetChat(chatId)
 	if err != nil {
@@ -100,7 +100,7 @@ func (s *ServerImpl) InitChatFromReceiver(ctx context.Context, chatId uint64) (*
 }
 func (s *ServerImpl) UpdateChatRsaKey(ctx context.Context, chatId uint64, RsaPublicKey []byte) (*custom_types.UpdateChatRsaKeyResponse, *Error) {
 	userId := ctx.Value(ContextKeyUser).(uint64)
-	reqId := ctx.Value(ContextKeyId).(string)
+	reqId := ctx.Value(ContextKeyReqId).(string)
 
 	chat, err := s.Storage.GetChat(chatId)
 	if err != nil {
@@ -141,7 +141,7 @@ func (s *ServerImpl) UpdateChatRsaKey(ctx context.Context, chatId uint64, RsaPub
 }
 func (s *ServerImpl) SendMessage(ctx context.Context, ChatId uint64, EncryptedMessage []byte, MessageEcdsaSignature []byte) (*custom_types.SendMessageResponse, *Error) {
 	userId := ctx.Value(ContextKeyUser).(uint64)
-	reqId := ctx.Value(ContextKeyId).(string)
+	reqId := ctx.Value(ContextKeyReqId).(string)
 
 	destChat, err := s.Storage.GetChat(ChatId)
 	if err != nil {
@@ -192,7 +192,7 @@ func (s *ServerImpl) SendMessage(ctx context.Context, ChatId uint64, EncryptedMe
 }
 func (s *ServerImpl) SendFile(ctx context.Context, ChatId uint64, EncryptedFile []byte, EncryptedMimeType []byte, FileEcdsaSignature []byte) (*custom_types.SendFileResponse, *Error) {
 	userId := ctx.Value(ContextKeyUser).(uint64)
-	reqId := ctx.Value(ContextKeyId).(string)
+	reqId := ctx.Value(ContextKeyReqId).(string)
 
 	destChat, err := s.Storage.GetChat(ChatId)
 	if err != nil {
@@ -245,7 +245,7 @@ func (s *ServerImpl) SendFile(ctx context.Context, ChatId uint64, EncryptedFile 
 
 func (s *ServerImpl) GetNotifications(ctx context.Context, Limit uint32) (*custom_types.GetNotificationsResponse, *Error) {
 	userId := ctx.Value(ContextKeyUser).(uint64)
-	reqId := ctx.Value(ContextKeyId).(string)
+	reqId := ctx.Value(ContextKeyReqId).(string)
 
 	if Limit <= 0 {
 		s.Logger.Errorf("[%s] invalid limit: %d", reqId, Limit)

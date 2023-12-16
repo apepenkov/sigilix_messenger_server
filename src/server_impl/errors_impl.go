@@ -1,8 +1,11 @@
 package server_impl
 
 import (
+	"encoding/json"
+	"fmt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"net/http"
 )
 
 type ErrorCodes int
@@ -21,9 +24,9 @@ type Error struct {
 	Message string
 }
 
-//func (e *Error) Error() string {
-//	return e.Message
-//}
+func (e *Error) Error() string {
+	return fmt.Sprintf("Error: %s, code: %v", e.Message, e.Code)
+}
 
 func (e *Error) ToProtoError() error {
 	errForProto := codes.Unknown
@@ -73,4 +76,19 @@ func (e *Error) ToHTTPError() int {
 		break
 	}
 	return errForHTTP
+}
+
+type ErrorJSON struct {
+	Code    ErrorCodes `json:"code"`
+	Message string     `json:"message"`
+}
+
+func (e *Error) WriteToHttp(w http.ResponseWriter) {
+	w.WriteHeader(e.ToHTTPError())
+	errJSON := ErrorJSON{
+		Code:    e.Code,
+		Message: e.Message,
+	}
+	jsonBytes, _ := json.Marshal(errJSON)
+	w.Write(jsonBytes)
 }
