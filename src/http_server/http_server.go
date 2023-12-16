@@ -31,12 +31,29 @@ type Serv struct {
 func (s *Serv) Middleware(next http.Handler) http.Handler {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
 		mbClose := func() {
 			if r.Body != nil {
 				_ = r.Body.Close()
 			}
 		}
 
+		if r.Method != "POST" {
+			s.Logger.Errorf("Method is not POST: %s\n", r.Method)
+			e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "method is not POST"}
+			e.WriteToHttp(w)
+			mbClose()
+			return
+		}
+
+		defer func() {
+			if p := recover(); p != nil {
+				e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "internal server error"}
+				e.WriteToHttp(w)
+				mbClose()
+				s.Logger.Errorf("Recovered from panic: %v, url: %s\n", p, r.URL.Path)
+			}
+		}()
 		reqId := smallRandomCode()
 		r = r.WithContext(context.WithValue(r.Context(), server_impl.ContextKeyReqId, reqId))
 
