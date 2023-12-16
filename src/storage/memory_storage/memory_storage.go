@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"container/list"
 	"github.com/apepenkov/sigilix_messenger_server/crypto_utils"
-	"github.com/apepenkov/sigilix_messenger_server/proto/messages"
+	"github.com/apepenkov/sigilix_messenger_server/custom_types"
 	"github.com/apepenkov/sigilix_messenger_server/storage"
 	"sync"
 	"time"
@@ -21,20 +21,20 @@ type NotificationBucket struct {
 	NotifList *list.List
 }
 
-func (nb *NotificationBucket) Add(notifications ...*messages.IncomingNotification) {
+func (nb *NotificationBucket) Add(notifications ...*custom_types.IncomingNotification) {
 	for _, notif := range notifications {
 		nb.NotifList.PushBack(notif)
 	}
 }
 
-func (nb *NotificationBucket) Pop(n int) []*messages.IncomingNotification {
+func (nb *NotificationBucket) Pop(n int) []*custom_types.IncomingNotification {
 	actualN := min(n, nb.NotifList.Len())
 	if actualN == 0 {
-		return []*messages.IncomingNotification{}
+		return []*custom_types.IncomingNotification{}
 	}
-	ret := make([]*messages.IncomingNotification, actualN)
+	ret := make([]*custom_types.IncomingNotification, actualN)
 	for i := 0; i < actualN; i++ {
-		ret[i] = nb.NotifList.Front().Value.(*messages.IncomingNotification)
+		ret[i] = nb.NotifList.Front().Value.(*custom_types.IncomingNotification)
 		nb.NotifList.Remove(nb.NotifList.Front())
 	}
 	return ret
@@ -155,12 +155,12 @@ func (s *inMemoryStorage) SetUsernameConfig(userId uint64, username string, sear
 	return nil
 }
 
-func (s *inMemoryStorage) PutNotifications(userId uint64, notifications ...*messages.IncomingNotification) error {
+func (s *inMemoryStorage) PutNotifications(userId uint64, notifications ...*custom_types.IncomingNotification) error {
 	s.getNotificationBucket(userId).Add(notifications...)
 	return nil
 }
 
-func (s *inMemoryStorage) FetchAndRemoveNotifications(userId uint64, limit int) ([]*messages.IncomingNotification, error) {
+func (s *inMemoryStorage) FetchAndRemoveNotifications(userId uint64, limit int) ([]*custom_types.IncomingNotification, error) {
 	return s.getNotificationBucket(userId).Pop(limit), nil
 }
 

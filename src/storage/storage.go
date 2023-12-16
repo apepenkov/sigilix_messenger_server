@@ -2,8 +2,7 @@ package storage
 
 import (
 	"errors"
-	"github.com/apepenkov/sigilix_messenger_server/proto/messages"
-	"github.com/apepenkov/sigilix_messenger_server/proto/users"
+	"github.com/apepenkov/sigilix_messenger_server/custom_types"
 	"time"
 )
 
@@ -16,8 +15,8 @@ type User struct {
 	SearchByUsernameAllowed bool
 }
 
-func (u *User) ToPublicInfo() *users.PublicUserInfo {
-	return &users.PublicUserInfo{
+func (u *User) ToPublicInfo() *custom_types.PublicUserInfo {
+	return &custom_types.PublicUserInfo{
 		UserId:              u.UserId,
 		EcdsaPublicKey:      u.EcdsaPublicKeyBytes,
 		Username:            u.Username,
@@ -25,8 +24,8 @@ func (u *User) ToPublicInfo() *users.PublicUserInfo {
 	}
 }
 
-func (u *User) ToPrivateInfo() *users.PrivateUserInfo {
-	return &users.PrivateUserInfo{
+func (u *User) ToPrivateInfo() *custom_types.PrivateUserInfo {
+	return &custom_types.PrivateUserInfo{
 		PublicInfo:              u.ToPublicInfo(),
 		SearchByUsernameAllowed: u.SearchByUsernameAllowed,
 	}
@@ -54,8 +53,8 @@ type Storage interface {
 	SearchForUserByUsername(username string) (*User, error)
 	SetUsernameConfig(userId uint64, username string, searchByUsernameAllowed bool) error
 
-	PutNotifications(userId uint64, notifications ...*messages.IncomingNotification) error
-	FetchAndRemoveNotifications(userId uint64, limit int) ([]*messages.IncomingNotification, error)
+	PutNotifications(userId uint64, notifications ...*custom_types.IncomingNotification) error
+	FetchAndRemoveNotifications(userId uint64, limit int) ([]*custom_types.IncomingNotification, error)
 
 	CreateChat(initiatorId uint64, receiverId uint64) (*Chat, *User, *User, error)
 	GetChat(chatId uint64) (*Chat, error)

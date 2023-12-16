@@ -3,6 +3,7 @@ package sqlite_storage
 import (
 	"database/sql"
 	"github.com/apepenkov/sigilix_messenger_server/crypto_utils"
+	"github.com/apepenkov/sigilix_messenger_server/custom_types"
 	"github.com/apepenkov/sigilix_messenger_server/proto/messages"
 	"github.com/apepenkov/sigilix_messenger_server/storage"
 	_ "github.com/mattn/go-sqlite3"
@@ -209,9 +210,9 @@ func (s *sqliteStorage) SetUsernameConfig(userId uint64, username string, search
 	}
 	return nil
 }
-func (s *sqliteStorage) PutNotifications(userId uint64, notifications ...*messages.IncomingNotification) error {
+func (s *sqliteStorage) PutNotifications(userId uint64, notifications ...*custom_types.IncomingNotification) error {
 	for _, notification := range notifications {
-		notificationBytes, err := proto.Marshal(notification)
+		notificationBytes, err := proto.Marshal(notification.ToProtobuf())
 		if err != nil {
 			return err
 		}
@@ -223,7 +224,7 @@ func (s *sqliteStorage) PutNotifications(userId uint64, notifications ...*messag
 	return nil
 }
 
-func (s *sqliteStorage) FetchAndRemoveNotifications(userId uint64, limit int) ([]*messages.IncomingNotification, error) {
+func (s *sqliteStorage) FetchAndRemoveNotifications(userId uint64, limit int) ([]*custom_types.IncomingNotification, error) {
 	res, err := s.sqliteDb.Query("SELECT notification_id, notification FROM notifications WHERE user_id = ? LIMIT ?", Uint64ToByteInt64(userId), limit)
 	defer func() {
 		if res != nil {
@@ -234,7 +235,7 @@ func (s *sqliteStorage) FetchAndRemoveNotifications(userId uint64, limit int) ([
 		return nil, err
 	}
 	var lastNotificationId int64
-	notifications := make([]*messages.IncomingNotification, 0, limit)
+	notifications := make([]*custom_types.IncomingNotification, 0, limit)
 	for res.Next() {
 		var notificationBytes []byte
 		err = res.Scan(&lastNotificationId, &notificationBytes)
@@ -246,7 +247,7 @@ func (s *sqliteStorage) FetchAndRemoveNotifications(userId uint64, limit int) ([
 		if err != nil {
 			return nil, err
 		}
-		notifications = append(notifications, notification)
+		notifications = append(notifications, custom_types.IncomingNotificationFromProtobuf(notification))
 	}
 	_, err = s.sqliteDb.Exec("DELETE FROM notifications WHERE user_id = ? AND notification_id <= ?", Uint64ToByteInt64(userId), lastNotificationId)
 	if err != nil {

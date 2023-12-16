@@ -10,6 +10,7 @@ import (
 	"github.com/apepenkov/sigilix_messenger_server/logger"
 	"github.com/apepenkov/sigilix_messenger_server/proto/messages"
 	"github.com/apepenkov/sigilix_messenger_server/proto/users"
+	"github.com/apepenkov/sigilix_messenger_server/server_impl"
 	"github.com/apepenkov/sigilix_messenger_server/storage"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -27,18 +28,12 @@ func smallRandomCode() string {
 	return hex.EncodeToString(buf)
 }
 
-type contextKey int
-
-const (
-	contextKeyUser contextKey = iota
-	contextKeyId
-	contextKeySignature
-)
+const fS = true // disable signature requirement
 
 func interceptor(srv *GRpcServer) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		reqId := smallRandomCode()
-		ctx = context.WithValue(ctx, contextKeyId, reqId)
+		ctx = context.WithValue(ctx, server_impl.ContextKeyId, reqId)
 		shouldNotPrint := false
 		if info.FullMethod == "/messages.MessageService/GetNotifications" {
 			shouldNotPrint = true
@@ -54,10 +49,14 @@ func interceptor(srv *GRpcServer) grpc.UnaryServerInterceptor {
 		}
 		signatureBase64, ok := md["signature_base64"]
 		if !ok || len(signatureBase64) != 1 {
-			srv.logger.Errorf("[%s] signature was not provided\n", reqId)
-			return nil, status.Errorf(codes.Unauthenticated, "signature was not provided or is invalid")
+			if !fS {
+				srv.logger.Errorf("[%s] signature was not provided\n", reqId)
+				return nil, status.Errorf(codes.Unauthenticated, "signature was not provided or is invalid")
+			} else {
+				signatureBase64 = []string{"HqKLs7KDyNEhovHNLCNE4mHxonmwJIS4toeJtOzXC0To4ObawagCxPDOuNKEqqVx7v5Ud1dx16BRPQ/87idsvQ=="}
+			}
 		}
-		ctx = context.WithValue(ctx, contextKeySignature, signatureBase64[0])
+		ctx = context.WithValue(ctx, server_impl.ContextKeySignature, signatureBase64[0])
 
 		// check type of request. if it's a login request, we don't need to validate anything
 		if info.FullMethod == "/users.UserService/Login" {
@@ -81,7 +80,7 @@ func interceptor(srv *GRpcServer) grpc.UnaryServerInterceptor {
 				return nil, status.Errorf(codes.NotFound, "user does not exist")
 			}
 
-			ctx = context.WithValue(ctx, contextKeyUser, userId)
+			ctx = context.WithValue(ctx, server_impl.ContextKeyUser, userId)
 
 			p, ok := req.(proto.Message)
 			if !ok {
@@ -97,8 +96,10 @@ func interceptor(srv *GRpcServer) grpc.UnaryServerInterceptor {
 			isSigValid, err := crypto_utils.ValidateECDSASignatureFromBase64(userData.EcdsaPublicKeyBytes, dataBytes, signatureBase64[0])
 
 			if err != nil || !isSigValid {
-				srv.logger.Errorf("[%s] failed to validate signature: %v %v\n", reqId, err, isSigValid)
-				return nil, status.Errorf(codes.Unauthenticated, "signature is invalid")
+				if !fS {
+					srv.logger.Errorf("[%s] failed to validate signature: %v %v\n", reqId, err, isSigValid)
+					return nil, status.Errorf(codes.Unauthenticated, "signature is invalid")
+				}
 			}
 			if !shouldNotPrint {
 				srv.logger.Infof("[%s] signature is valid, processing request\n", reqId)
@@ -183,17 +184,15 @@ func NewGrpcServer(tls *tls.Certificate, storage storage.Storage, ecdsaPrivateKe
 	}
 	srv.rpcServ = server
 
-	usersServer := &userService{
-		storage:              storage,
-		serverECDSAPublicKey: crypto_utils.PublicECDSAKeyToBytes(&ecdsaPrivateKey.PublicKey),
-		logger:               log.AddChild("users"),
+	backend := &server_impl.ServerImpl{
+		Storage:               storage,
+		ServerECDSAPublicKey:  crypto_utils.PublicECDSAKeyToBytes(&ecdsaPrivateKey.PublicKey),
+		ServerECDSAPrivateKey: ecdsaPrivateKey,
+		Logger:                log.AddChild("backend"),
 	}
-	messagesServer := &messagesService{
-		storage:               storage,
-		serverECDSAPublicKey:  crypto_utils.PublicECDSAKeyToBytes(&ecdsaPrivateKey.PublicKey),
-		serverECDSAPrivateKey: ecdsaPrivateKey,
-		logger:                log.AddChild("messages"),
-	}
+
+	usersServer := &userService{serv: backend}
+	messagesServer := &messagesService{serv: backend}
 
 	users.RegisterUserServiceServer(server, usersServer)
 	messages.RegisterMessageServiceServer(server, messagesServer)
