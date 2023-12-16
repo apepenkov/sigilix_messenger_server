@@ -100,7 +100,7 @@ func main() {
 		backend,
 	)
 
-	httpServ := http_server.New(backend, log.AddChild("http"), listenAddr)
+	httpServ := http_server.New(backend, log.AddChild("http"), httpListenAddr)
 
 	go func() {
 		err2 := httpServ.Start()
