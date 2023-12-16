@@ -33,7 +33,10 @@ func (s *Serv) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// set content type to json
 		w.Header().Set("Content-Type", "application/json")
-		s.Logger.Infof("Incoming request: [%-4s] %s, headers: %v\n", r.Method, r.URL.Path, r.Header)
+		printDebug := r.URL.Path != "/api/messages/get_notifications"
+		if printDebug {
+			s.Logger.Infof("Incoming request: [%-4s] %s, headers: %v\n", r.Method, r.URL.Path, r.Header)
+		}
 		mbClose := func() {
 			if r.Body != nil {
 				_ = r.Body.Close()
@@ -59,14 +62,9 @@ func (s *Serv) Middleware(next http.Handler) http.Handler {
 		reqId := smallRandomCode()
 		r = r.WithContext(context.WithValue(r.Context(), server_impl.ContextKeyReqId, reqId))
 
-		shouldNotPrint := false
-
 		path := r.URL.Path
-		if path == "/api/messages/get_notifications" {
-			shouldNotPrint = true
-		}
 
-		if !shouldNotPrint {
+		if printDebug {
 			s.Logger.Infof("[%s] incoming request: %s\n", reqId, path)
 		}
 		signatureBase64 := r.Header.Get("X-Sigilix-Signature")
@@ -142,7 +140,7 @@ func (s *Serv) Middleware(next http.Handler) http.Handler {
 				return
 			}
 
-			if !shouldNotPrint {
+			if printDebug {
 				s.Logger.Infof("[%s] signature is valid, processing request\n", reqId)
 			}
 		}
@@ -506,7 +504,7 @@ func (s *Serv) SendFile(w http.ResponseWriter, r *http.Request) {
 
 func (s *Serv) GetNotifications(w http.ResponseWriter, r *http.Request) {
 	reqId := r.Context().Value(server_impl.ContextKeyReqId).(string)
-	s.Logger.Infof("[%s] get notifications request\n", reqId)
+	//s.Logger.Infof("[%s] get notifications request\n", reqId)
 
 	dataBytes, err := io.ReadAll(r.Body)
 	_ = r.Body.Close()
