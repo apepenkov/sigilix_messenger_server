@@ -2,7 +2,6 @@ package custom_types
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"github.com/apepenkov/sigilix_messenger_server/proto/messages"
 	"github.com/apepenkov/sigilix_messenger_server/proto/users"
@@ -29,13 +28,6 @@ type SomeNotification interface {
 	NotificationType() NotificationType
 }
 
-type PublicUserInfo struct {
-	UserId              uint64      `json:"user_id"`
-	EcdsaPublicKey      Base64Bytes `json:"ecdsa_public_key"`
-	Username            string      `json:"username"`
-	InitialRsaPublicKey Base64Bytes `json:"initial_rsa_public_key"`
-}
-
 func (p *PublicUserInfo) ToProtobuf() proto.Message {
 	return &users.PublicUserInfo{
 		UserId:              p.UserId,
@@ -45,11 +37,6 @@ func (p *PublicUserInfo) ToProtobuf() proto.Message {
 	}
 }
 
-type PrivateUserInfo struct {
-	PublicInfo              *PublicUserInfo `json:"public_info"`
-	SearchByUsernameAllowed bool            `json:"search_by_username_allowed"`
-}
-
 func (p *PrivateUserInfo) ToProtobuf() proto.Message {
 	return &users.PrivateUserInfo{
 		PublicInfo:              p.PublicInfo.ToProtobuf().(*users.PublicUserInfo),
@@ -57,22 +44,11 @@ func (p *PrivateUserInfo) ToProtobuf() proto.Message {
 	}
 }
 
-type LoginRequest struct {
-	ClientEcdaPublicKey Base64Bytes `json:"client_ecdsa_public_key"`
-	ClientRsaPublicKey  Base64Bytes `json:"client_rsa_public_key"`
-}
-
 func (l *LoginRequest) ToProtobuf() proto.Message {
 	return &users.LoginRequest{
 		ClientEcdsaPublicKey: l.ClientEcdaPublicKey,
 		ClientRsaPublicKey:   l.ClientRsaPublicKey,
 	}
-}
-
-type LoginResponse struct {
-	PrivateInfo          *PrivateUserInfo `json:"private_info"`
-	UserId               uint64           `json:"user_id"`
-	ServerEcdsaPublicKey Base64Bytes      `json:"server_ecdsa_public_key"`
 }
 
 func (l *LoginResponse) ToProtobuf() proto.Message {
@@ -83,20 +59,11 @@ func (l *LoginResponse) ToProtobuf() proto.Message {
 	}
 }
 
-type SetUsernameConfigRequest struct {
-	Username                string `json:"username"`
-	SearchByUsernameAllowed bool   `json:"search_by_username_allowed"`
-}
-
 func (s *SetUsernameConfigRequest) ToProtobuf() proto.Message {
 	return &users.SetUsernameConfigRequest{
 		Username:                s.Username,
 		SearchByUsernameAllowed: s.SearchByUsernameAllowed,
 	}
-}
-
-type SetUsernameConfigResponse struct {
-	Success bool `json:"success"`
 }
 
 func (s *SetUsernameConfigResponse) ToProtobuf() proto.Message {
@@ -105,18 +72,10 @@ func (s *SetUsernameConfigResponse) ToProtobuf() proto.Message {
 	}
 }
 
-type SearchByUsernameRequest struct {
-	Username string `json:"username"`
-}
-
 func (s *SearchByUsernameRequest) ToProtobuf() proto.Message {
 	return &users.SearchByUsernameRequest{
 		Username: s.Username,
 	}
-}
-
-type SearchByUsernameResponse struct {
-	PublicInfo *PublicUserInfo `json:"public_info"`
 }
 
 func (s *SearchByUsernameResponse) ToProtobuf() proto.Message {
@@ -127,29 +86,16 @@ func (s *SearchByUsernameResponse) ToProtobuf() proto.Message {
 
 // messages
 
-type InitChatFromInitializerRequest struct {
-	TargetUserId uint64 `json:"target_user_id"`
-}
-
 func (i *InitChatFromInitializerRequest) ToProtobuf() proto.Message {
 	return &messages.InitChatFromInitializerRequest{
 		TargetUserId: i.TargetUserId,
 	}
 }
 
-type InitChatFromInitializerResponse struct {
-	ChatId uint64 `json:"chat_id"`
-}
-
 func (i *InitChatFromInitializerResponse) ToProtobuf() proto.Message {
 	return &messages.InitChatFromInitializerResponse{
 		ChatId: i.ChatId,
 	}
-}
-
-type InitChatFromInitializerNotification struct {
-	ChatId              uint64          `json:"chat_id"`
-	InitializerUserInfo *PublicUserInfo `json:"initializer_user_info"`
 }
 
 func (i *InitChatFromInitializerNotification) NotificationType() NotificationType {
@@ -163,18 +109,10 @@ func (i *InitChatFromInitializerNotification) ToProtobuf() proto.Message {
 	}
 }
 
-type InitChatFromReceiverRequest struct {
-	ChatId uint64 `json:"chat_id"`
-}
-
 func (i *InitChatFromReceiverRequest) ToProtobuf() proto.Message {
 	return &messages.InitChatFromReceiverRequest{
 		ChatId: i.ChatId,
 	}
-}
-
-type InitChatFromReceiverResponse struct {
-	ChatId uint64 `json:"chat_id"`
 }
 
 func (i *InitChatFromReceiverResponse) ToProtobuf() proto.Message {
@@ -182,12 +120,6 @@ func (i *InitChatFromReceiverResponse) ToProtobuf() proto.Message {
 		ChatId: i.ChatId,
 	}
 }
-
-type InitChatFromReceiverNotification struct {
-	ChatId           uint64          `json:"chat_id"`
-	ReceiverUserInfo *PublicUserInfo `json:"receiver_user_info"`
-}
-
 func (i *InitChatFromReceiverNotification) NotificationType() NotificationType {
 	return notificationTypeInitChatFromReceiver
 }
@@ -199,11 +131,6 @@ func (i *InitChatFromReceiverNotification) ToProtobuf() proto.Message {
 	}
 }
 
-type UpdateChatRsaKeyRequest struct {
-	ChatId       uint64      `json:"chat_id"`
-	RsaPublicKey Base64Bytes `json:"rsa_public_key"`
-}
-
 func (u *UpdateChatRsaKeyRequest) ToProtobuf() proto.Message {
 	return &messages.UpdateChatRsaKeyRequest{
 		ChatId:       u.ChatId,
@@ -211,20 +138,10 @@ func (u *UpdateChatRsaKeyRequest) ToProtobuf() proto.Message {
 	}
 }
 
-type UpdateChatRsaKeyResponse struct {
-	ChatId uint64 `json:"chat_id"`
-}
-
 func (u *UpdateChatRsaKeyResponse) ToProtobuf() proto.Message {
 	return &messages.UpdateChatRsaKeyResponse{
 		ChatId: u.ChatId,
 	}
-}
-
-type UpdateChatRsaKeyNotification struct {
-	ChatId       uint64      `json:"chat_id"`
-	UserId       uint64      `json:"user_id"`
-	RsaPublicKey Base64Bytes `json:"rsa_public_key"`
 }
 
 func (u *UpdateChatRsaKeyNotification) NotificationType() NotificationType {
@@ -239,12 +156,6 @@ func (u *UpdateChatRsaKeyNotification) ToProtobuf() proto.Message {
 	}
 }
 
-type SendMessageRequest struct {
-	ChatId                uint64      `json:"chat_id"`
-	EncryptedMessage      Base64Bytes `json:"encrypted_message"`
-	MessageEcdsaSignature Base64Bytes `json:"message_ecdsa_signature"`
-}
-
 func (s *SendMessageRequest) ToProtobuf() proto.Message {
 	return &messages.SendMessageRequest{
 		ChatId:                s.ChatId,
@@ -253,24 +164,11 @@ func (s *SendMessageRequest) ToProtobuf() proto.Message {
 	}
 }
 
-type SendMessageResponse struct {
-	ChatId    uint64 `json:"chat_id"`
-	MessageId uint64 `json:"message_id"`
-}
-
 func (s *SendMessageResponse) ToProtobuf() proto.Message {
 	return &messages.SendMessageResponse{
 		ChatId:    s.ChatId,
 		MessageId: s.MessageId,
 	}
-}
-
-type SendMessageNotification struct {
-	ChatId                uint64      `json:"chat_id"`
-	MessageId             uint64      `json:"message_id"`
-	SenderUserId          uint64      `json:"sender_user_id"`
-	EncryptedMessage      Base64Bytes `json:"encrypted_message"`
-	MessageEcdsaSignature Base64Bytes `json:"message_ecdsa_signature"`
 }
 
 func (s *SendMessageNotification) NotificationType() NotificationType {
@@ -287,13 +185,6 @@ func (s *SendMessageNotification) ToProtobuf() proto.Message {
 	}
 }
 
-type SendFileRequest struct {
-	ChatId             uint64      `json:"chat_id"`
-	EncryptedFile      Base64Bytes `json:"encrypted_file"`
-	EncryptedMimeType  Base64Bytes `json:"encrypted_mime_type"`
-	FileEcdsaSignature Base64Bytes `json:"file_ecdsa_signature"`
-}
-
 func (s *SendFileRequest) ToProtobuf() proto.Message {
 	return &messages.SendFileRequest{
 		ChatId:             s.ChatId,
@@ -303,25 +194,11 @@ func (s *SendFileRequest) ToProtobuf() proto.Message {
 	}
 }
 
-type SendFileResponse struct {
-	ChatId    uint64 `json:"chat_id"`
-	MessageId uint64 `json:"message_id"`
-}
-
 func (s *SendFileResponse) ToProtobuf() proto.Message {
 	return &messages.SendFileResponse{
 		ChatId:    s.ChatId,
 		MessageId: s.MessageId,
 	}
-}
-
-type SendFileNotification struct {
-	ChatId             uint64      `json:"chat_id"`
-	MessageId          uint64      `json:"message_id"`
-	SenderUserId       uint64      `json:"sender_user_id"`
-	EncryptedFile      Base64Bytes `json:"encrypted_file"`
-	EncryptedMimeType  Base64Bytes `json:"encrypted_mime_type"`
-	FileEcdsaSignature Base64Bytes `json:"file_ecdsa_signature"`
 }
 
 func (s *SendFileNotification) NotificationType() NotificationType { return notificationTypeSendFile }
@@ -335,11 +212,6 @@ func (s *SendFileNotification) ToProtobuf() proto.Message {
 		EncryptedMimeType:  s.EncryptedMimeType,
 		FileEcdsaSignature: s.FileEcdsaSignature,
 	}
-}
-
-type IncomingNotification struct {
-	Notification   SomeNotification `json:"notification"`
-	EcdsaSignature Base64Bytes      `json:"ecdsa_signature"`
 }
 
 func (i *IncomingNotification) ToProtobuf() proto.Message {
@@ -439,19 +311,6 @@ func IncomingNotificationFromProtobuf(notification *messages.IncomingNotificatio
 	}
 }
 
-type NotificationWithTypeInfo struct {
-	Notification SomeNotification `json:"notif"`
-	Type         NotificationType `json:"type"`
-}
-
-func (i *IncomingNotification) MarshalJSON() ([]byte, error) {
-	r := &NotificationWithTypeInfo{
-		Notification: i.Notification,
-		Type:         i.Notification.NotificationType(),
-	}
-	return json.Marshal(r)
-}
-
 func PublicUserInfoFromProtobuf(userInfo *users.PublicUserInfo) *PublicUserInfo {
 	return &PublicUserInfo{
 		UserId:              userInfo.UserId,
@@ -469,10 +328,6 @@ func (g *GetNotificationsRequest) ToProtobuf() proto.Message {
 	return &messages.GetNotificationsRequest{
 		Limit: g.Limit,
 	}
-}
-
-type GetNotificationsResponse struct {
-	Notifications []*IncomingNotification `json:"notifications"`
 }
 
 func (g *GetNotificationsResponse) ToProtobuf() proto.Message {
