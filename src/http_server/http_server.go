@@ -567,5 +567,6 @@ func New(serv *server_impl.ServerImpl, logger *logger.Logger, addr string) *Serv
 }
 
 func (s *Serv) Start() error {
+	s.Logger.Infof("Starting http server on %s\n", s.HttpServer.Addr)
 	return s.HttpServer.ListenAndServe()
 }

@@ -88,7 +88,9 @@ func ValidateECDSASignatureFromBase64(pubKeyBytes []byte, data []byte, signature
 
 func GenerateUserIdByPublicKey(publicKey *ecdsa.PublicKey) uint64 {
 	hashBytes := sha256.Sum256(elliptic.Marshal(publicKey.Curve, publicKey.X, publicKey.Y))
-	return binary.BigEndian.Uint64(hashBytes[:4])
+	buf := make([]byte, 8)
+	copy(buf[4:], hashBytes[:4])
+	return binary.BigEndian.Uint64(buf)
 }
 
 func SignMessage(privateKey *ecdsa.PrivateKey, data []byte) ([]byte, error) {
