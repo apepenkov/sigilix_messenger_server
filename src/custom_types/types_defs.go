@@ -124,7 +124,7 @@ type IncomingNotification struct {
 }
 
 type NotificationWithTypeInfo struct {
-	Notification SomeNotification `json:"notif"`
+	Notification SomeNotification `json:"notification"`
 	Type         NotificationType `json:"type"`
 }
 
