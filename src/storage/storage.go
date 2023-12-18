@@ -1,8 +1,8 @@
 package storage
 
 import (
-	"errors"
 	"github.com/apepenkov/sigilix_messenger_server/custom_types"
+	"github.com/apepenkov/sigilix_messenger_server/errors_impl"
 	"time"
 )
 
@@ -65,7 +65,10 @@ type Storage interface {
 }
 
 var (
-	ErrUserNotFound = errors.New("user not found")
-	ErrRsaMissmatch = errors.New("rsa key missmatch with stored one")
-	ErrChatNotFound = errors.New("chat not found")
+	//ErrUserNotFound = errors.New("user not found")
+	//ErrRsaMissmatch = errors.New("rsa key missmatch with stored one")
+	//ErrChatNotFound = errors.New("chat not found")
+	ErrUserNotFound = errors_impl.Error{Code: errors_impl.ErrNotFound, Message: "user not found"}
+	ErrRsaMissmatch = errors_impl.Error{Code: errors_impl.ErrPermissionDenied, Message: "rsa key missmatch with stored one"}
+	ErrChatNotFound = errors_impl.Error{Code: errors_impl.ErrNotFound, Message: "chat not found"}
 )

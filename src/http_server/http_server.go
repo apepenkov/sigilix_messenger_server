@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"github.com/apepenkov/sigilix_messenger_server/crypto_utils"
 	"github.com/apepenkov/sigilix_messenger_server/custom_types"
+	"github.com/apepenkov/sigilix_messenger_server/errors_impl"
 	"github.com/apepenkov/sigilix_messenger_server/logger"
 	"github.com/apepenkov/sigilix_messenger_server/server_impl"
 	"io"
@@ -45,7 +46,7 @@ func (s *Serv) Middleware(next http.Handler) http.Handler {
 
 		if r.Method != "POST" {
 			s.Logger.Errorf("Method is not POST: %s\n", r.Method)
-			e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "method is not POST"}
+			e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "method is not POST"}
 			e.WriteToHttp(w)
 			mbClose()
 			return
@@ -53,7 +54,7 @@ func (s *Serv) Middleware(next http.Handler) http.Handler {
 
 		defer func() {
 			if p := recover(); p != nil {
-				e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "internal server error"}
+				e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "internal server error"}
 				e.WriteToHttp(w)
 				mbClose()
 				s.Logger.Errorf("Recovered from panic: %v, url: %s\n", p, r.URL.Path)
@@ -70,7 +71,7 @@ func (s *Serv) Middleware(next http.Handler) http.Handler {
 		signatureBase64 := r.Header.Get("X-Sigilix-Signature")
 		if signatureBase64 == "" {
 			s.Logger.Errorf("[%s] signature was not provided\n", reqId)
-			e := &server_impl.Error{Code: server_impl.ErrUnauthenticated, Message: "signature was not provided or is invalid"}
+			e := &errors_impl.Error{Code: errors_impl.ErrUnauthenticated, Message: "signature was not provided or is invalid"}
 			e.WriteToHttp(w)
 			mbClose()
 			return
@@ -84,7 +85,7 @@ func (s *Serv) Middleware(next http.Handler) http.Handler {
 			userIdStr := r.Header.Get("X-Sigilix-User-Id")
 			if userIdStr == "" {
 				s.Logger.Errorf("[%s] user_id was not provided\n", reqId)
-				e := &server_impl.Error{Code: server_impl.ErrUnauthenticated, Message: "user_id was not provided or is invalid"}
+				e := &errors_impl.Error{Code: errors_impl.ErrUnauthenticated, Message: "user_id was not provided or is invalid"}
 				e.WriteToHttp(w)
 				mbClose()
 				return
@@ -93,7 +94,7 @@ func (s *Serv) Middleware(next http.Handler) http.Handler {
 			userId, err := strconv.ParseUint(userIdStr, 10, 64)
 			if err != nil {
 				s.Logger.Errorf("[%s] failed to parse user_id: %v\n", reqId, err)
-				e := &server_impl.Error{Code: server_impl.ErrUnauthenticated, Message: "user_id was not provided or is invalid"}
+				e := &errors_impl.Error{Code: errors_impl.ErrUnauthenticated, Message: "user_id was not provided or is invalid"}
 				e.WriteToHttp(w)
 				mbClose()
 				return
@@ -102,7 +103,7 @@ func (s *Serv) Middleware(next http.Handler) http.Handler {
 			userData, err := s.serv.Storage.GetUserById(userId)
 			if err != nil {
 				s.Logger.Errorf("[%s] failed to get user: %v\n", reqId, err)
-				e := &server_impl.Error{Code: server_impl.ErrUnauthenticated, Message: "user does not exist"}
+				e := &errors_impl.Error{Code: errors_impl.ErrUnauthenticated, Message: "user does not exist"}
 				e.WriteToHttp(w)
 				mbClose()
 				return
@@ -117,13 +118,13 @@ func (s *Serv) Middleware(next http.Handler) http.Handler {
 				_ = r.Body.Close()
 				if err != nil {
 					s.Logger.Errorf("[%s] failed to read body: %v\n", reqId, err)
-					e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to read body"}
+					e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to read body"}
 					e.WriteToHttp(w)
 					return
 				}
 			} else {
 				s.Logger.Errorf("[%s] body is empty\n", reqId)
-				e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "body is empty"}
+				e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "body is empty"}
 				e.WriteToHttp(w)
 				return
 			}
@@ -134,7 +135,7 @@ func (s *Serv) Middleware(next http.Handler) http.Handler {
 
 			if err != nil || !isSigValid {
 				s.Logger.Errorf("[%s] failed to validate signature: %v %v\n", reqId, err, isSigValid)
-				e := &server_impl.Error{Code: server_impl.ErrUnauthenticated, Message: "signature is invalid"}
+				e := &errors_impl.Error{Code: errors_impl.ErrUnauthenticated, Message: "signature is invalid"}
 				e.WriteToHttp(w)
 				mbClose()
 				return
@@ -159,7 +160,7 @@ func (s *Serv) Login(w http.ResponseWriter, r *http.Request) {
 	_ = r.Body.Close()
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to read body: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to read body"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to read body"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -170,14 +171,14 @@ func (s *Serv) Login(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to unmarshal request: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to unmarshal request"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to unmarshal request"}
 		e.WriteToHttp(w)
 		return
 	}
 
 	if reqData.ClientRsaPublicKey == nil || reqData.ClientEcdaPublicKey == nil || len(reqData.ClientRsaPublicKey) == 0 || len(reqData.ClientEcdaPublicKey) == 0 {
 		s.Logger.Errorf("[%s] client rsa or ecdsa public key is empty\n", reqId)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "client rsa or ecdsa public key is empty"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "client rsa or ecdsa public key is empty"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -193,7 +194,7 @@ func (s *Serv) Login(w http.ResponseWriter, r *http.Request) {
 	resBytes, err := json.Marshal(res)
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to marshal response: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to marshal response"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to marshal response"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -209,7 +210,7 @@ func (s *Serv) SetUsernameConfig(w http.ResponseWriter, r *http.Request) {
 	_ = r.Body.Close()
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to read body: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to read body"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to read body"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -220,7 +221,7 @@ func (s *Serv) SetUsernameConfig(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to unmarshal request: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to unmarshal request"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to unmarshal request"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -236,7 +237,7 @@ func (s *Serv) SetUsernameConfig(w http.ResponseWriter, r *http.Request) {
 	resBytes, err := json.Marshal(res)
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to marshal response: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to marshal response"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to marshal response"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -252,7 +253,7 @@ func (s *Serv) SearchByUsername(w http.ResponseWriter, r *http.Request) {
 	_ = r.Body.Close()
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to read body: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to read body"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to read body"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -263,7 +264,7 @@ func (s *Serv) SearchByUsername(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to unmarshal request: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to unmarshal request"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to unmarshal request"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -279,7 +280,7 @@ func (s *Serv) SearchByUsername(w http.ResponseWriter, r *http.Request) {
 	resBytes, err := json.Marshal(res)
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to marshal response: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to marshal response"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to marshal response"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -295,7 +296,7 @@ func (s *Serv) InitChatFromInitializer(w http.ResponseWriter, r *http.Request) {
 	_ = r.Body.Close()
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to read body: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to read body"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to read body"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -306,7 +307,7 @@ func (s *Serv) InitChatFromInitializer(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to unmarshal request: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to unmarshal request"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to unmarshal request"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -322,7 +323,7 @@ func (s *Serv) InitChatFromInitializer(w http.ResponseWriter, r *http.Request) {
 	resBytes, err := json.Marshal(res)
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to marshal response: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to marshal response"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to marshal response"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -338,7 +339,7 @@ func (s *Serv) InitChatFromReceiver(w http.ResponseWriter, r *http.Request) {
 	_ = r.Body.Close()
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to read body: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to read body"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to read body"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -349,7 +350,7 @@ func (s *Serv) InitChatFromReceiver(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to unmarshal request: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to unmarshal request"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to unmarshal request"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -365,7 +366,7 @@ func (s *Serv) InitChatFromReceiver(w http.ResponseWriter, r *http.Request) {
 	resBytes, err := json.Marshal(res)
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to marshal response: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to marshal response"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to marshal response"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -381,7 +382,7 @@ func (s *Serv) UpdateChatRsaKey(w http.ResponseWriter, r *http.Request) {
 	_ = r.Body.Close()
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to read body: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to read body"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to read body"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -392,7 +393,7 @@ func (s *Serv) UpdateChatRsaKey(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to unmarshal request: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to unmarshal request"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to unmarshal request"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -408,7 +409,7 @@ func (s *Serv) UpdateChatRsaKey(w http.ResponseWriter, r *http.Request) {
 	resBytes, err := json.Marshal(res)
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to marshal response: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to marshal response"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to marshal response"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -424,7 +425,7 @@ func (s *Serv) SendMessage(w http.ResponseWriter, r *http.Request) {
 	_ = r.Body.Close()
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to read body: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to read body"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to read body"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -435,7 +436,7 @@ func (s *Serv) SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to unmarshal request: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to unmarshal request"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to unmarshal request"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -451,7 +452,7 @@ func (s *Serv) SendMessage(w http.ResponseWriter, r *http.Request) {
 	resBytes, err := json.Marshal(res)
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to marshal response: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to marshal response"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to marshal response"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -467,7 +468,7 @@ func (s *Serv) SendFile(w http.ResponseWriter, r *http.Request) {
 	_ = r.Body.Close()
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to read body: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to read body"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to read body"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -478,7 +479,7 @@ func (s *Serv) SendFile(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to unmarshal request: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to unmarshal request"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to unmarshal request"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -494,7 +495,7 @@ func (s *Serv) SendFile(w http.ResponseWriter, r *http.Request) {
 	resBytes, err := json.Marshal(res)
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to marshal response: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to marshal response"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to marshal response"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -510,7 +511,7 @@ func (s *Serv) GetNotifications(w http.ResponseWriter, r *http.Request) {
 	_ = r.Body.Close()
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to read body: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to read body"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to read body"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -521,7 +522,7 @@ func (s *Serv) GetNotifications(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to unmarshal request: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to unmarshal request"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to unmarshal request"}
 		e.WriteToHttp(w)
 		return
 	}
@@ -537,7 +538,7 @@ func (s *Serv) GetNotifications(w http.ResponseWriter, r *http.Request) {
 	resBytes, err := json.Marshal(res)
 	if err != nil {
 		s.Logger.Errorf("[%s] failed to marshal response: %v\n", reqId, err)
-		e := &server_impl.Error{Code: server_impl.ErrInternal, Message: "failed to marshal response"}
+		e := &errors_impl.Error{Code: errors_impl.ErrInternal, Message: "failed to marshal response"}
 		e.WriteToHttp(w)
 		return
 	}

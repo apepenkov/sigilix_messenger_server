@@ -97,7 +97,7 @@ func (s *inMemoryStorage) FetchOrCreateUser(ecdsaPublicKeyBytes []byte, initialR
 
 	if ok {
 		if !(bytes.Compare(user.InitialRsaKeyBytes, initialRsaKeyBytes) == 0) {
-			return nil, storage.ErrRsaMissmatch
+			return nil, &storage.ErrRsaMissmatch
 		}
 		return user, nil
 	} else {
@@ -123,7 +123,7 @@ func (s *inMemoryStorage) GetUserById(userId uint64) (*storage.User, error) {
 	s.usersRWLock.RUnlock()
 
 	if !ok {
-		return nil, storage.ErrUserNotFound
+		return nil, &storage.ErrUserNotFound
 	}
 
 	return user, nil
@@ -147,7 +147,7 @@ func (s *inMemoryStorage) SetUsernameConfig(userId uint64, username string, sear
 	s.usersRWLock.Unlock()
 
 	if !ok {
-		return storage.ErrUserNotFound
+		return &storage.ErrUserNotFound
 	}
 
 	user.Username = username
@@ -196,7 +196,7 @@ func (s *inMemoryStorage) GetChat(chatId uint64) (*storage.Chat, error) {
 	chatBucket, ok := s.chats[chatId]
 	s.chatsRWLock.RUnlock()
 	if !ok {
-		return nil, storage.ErrChatNotFound
+		return nil, &storage.ErrChatNotFound
 	}
 	return chatBucket.Chat, nil
 }
@@ -209,7 +209,7 @@ func (s *inMemoryStorage) GetChatByUsers(userA uint64, userB uint64) (*storage.C
 			return chat, nil
 		}
 	}
-	return nil, storage.ErrChatNotFound
+	return nil, &storage.ErrChatNotFound
 }
 
 func (s *inMemoryStorage) UpdateChatState(chatId uint64, state storage.ChatState) error {
@@ -217,7 +217,7 @@ func (s *inMemoryStorage) UpdateChatState(chatId uint64, state storage.ChatState
 	chatBucket, ok := s.chats[chatId]
 	s.chatsRWLock.Unlock()
 	if !ok {
-		return storage.ErrChatNotFound
+		return &storage.ErrChatNotFound
 	}
 	chatBucket.Chat.State = state
 	return nil
@@ -235,7 +235,7 @@ func (s *inMemoryStorage) GetNextMessageId(chatId uint64) (uint64, error) {
 	chatBucket, ok := s.chats[chatId]
 	s.chatsRWLock.Unlock()
 	if !ok {
-		return 0, storage.ErrChatNotFound
+		return 0, &storage.ErrChatNotFound
 	}
 	chatBucket.LastMessageId++
 	return chatBucket.LastMessageId, nil

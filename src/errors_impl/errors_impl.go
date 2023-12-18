@@ -1,4 +1,4 @@
-package server_impl
+package errors_impl
 
 import (
 	"encoding/json"
@@ -17,6 +17,7 @@ const (
 	ErrPermissionDenied
 	AlreadyExists
 	ErrNotFound
+	ErrInvalidRequest
 )
 
 type Error struct {
@@ -46,6 +47,8 @@ func (e *Error) ToProtoError() error {
 	case ErrNotFound:
 		errForProto = codes.NotFound
 		break
+	case ErrInvalidRequest:
+		errForProto = codes.InvalidArgument
 	default:
 		errForProto = codes.Unknown
 		break
@@ -71,6 +74,8 @@ func (e *Error) ToHTTPError() int {
 	case ErrNotFound:
 		errForHTTP = 404
 		break
+	case ErrInvalidRequest:
+		errForHTTP = 400
 	default:
 		errForHTTP = 500
 		break

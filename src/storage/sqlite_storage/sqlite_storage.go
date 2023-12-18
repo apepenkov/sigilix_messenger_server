@@ -163,7 +163,7 @@ func (s *sqliteStorage) GetUserById(userId uint64) (*storage.User, error) {
 		user.UserId = ByteInt64ToUint64(userIdInt64)
 		return &user, nil
 	} else {
-		return nil, storage.ErrUserNotFound
+		return nil, &storage.ErrUserNotFound
 	}
 
 }
@@ -206,7 +206,7 @@ func (s *sqliteStorage) SetUsernameConfig(userId uint64, username string, search
 		return err
 	}
 	if rowsAffected == 0 {
-		return storage.ErrUserNotFound
+		return &storage.ErrUserNotFound
 	}
 	return nil
 }
@@ -304,7 +304,7 @@ func (s *sqliteStorage) GetChat(chatId uint64) (*storage.Chat, error) {
 		chat.ReceiverId = ByteInt64ToUint64(receiverIdInt64)
 		return &chat, nil
 	} else {
-		return nil, storage.ErrChatNotFound
+		return nil, &storage.ErrChatNotFound
 	}
 }
 
@@ -331,7 +331,7 @@ func (s *sqliteStorage) GetChatByUsers(userA uint64, userB uint64) (*storage.Cha
 		chat.ReceiverId = ByteInt64ToUint64(receiverIdInt64)
 		return &chat, nil
 	} else {
-		return nil, storage.ErrChatNotFound
+		return nil, &storage.ErrChatNotFound
 	}
 }
 func (s *sqliteStorage) UpdateChatState(chatId uint64, state storage.ChatState) error {
@@ -344,7 +344,7 @@ func (s *sqliteStorage) UpdateChatState(chatId uint64, state storage.ChatState) 
 		return err
 	}
 	if rowsAffected == 0 {
-		return storage.ErrChatNotFound
+		return &storage.ErrChatNotFound
 	}
 	return nil
 
@@ -360,7 +360,7 @@ func (s *sqliteStorage) DestroyChat(chatId uint64) error {
 		return err
 	}
 	if rowsAffected == 0 {
-		return storage.ErrChatNotFound
+		return &storage.ErrChatNotFound
 	}
 	return nil
 }
@@ -375,7 +375,7 @@ func (s *sqliteStorage) GetNextMessageId(chatId uint64) (uint64, error) {
 		return 0, err
 	}
 	if rowsAffected == 0 {
-		return 0, storage.ErrChatNotFound
+		return 0, &storage.ErrChatNotFound
 	}
 	res2, err := s.sqliteDb.Query("SELECT last_message_id FROM chats WHERE chat_id = ?", Uint64ToByteInt64(chatId))
 	defer func() {
@@ -394,7 +394,7 @@ func (s *sqliteStorage) GetNextMessageId(chatId uint64) (uint64, error) {
 		}
 		return ByteInt64ToUint64(lastMessageId), nil
 	} else {
-		return 0, storage.ErrChatNotFound
+		return 0, &storage.ErrChatNotFound
 	}
 
 }
