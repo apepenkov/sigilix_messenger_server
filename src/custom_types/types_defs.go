@@ -136,6 +136,16 @@ func (i *IncomingNotification) MarshalJSON() ([]byte, error) {
 	return json.Marshal(r)
 }
 
+func (i *IncomingNotification) UnmarshalJSON(data []byte) error {
+	r := &NotificationWithTypeInfo{}
+	err := json.Unmarshal(data, r)
+	if err != nil {
+		return err
+	}
+	i.Notification = r.Notification
+	return nil
+}
+
 type GetNotificationsRequest struct {
 	Limit uint32 `json:"limit"`
 }
